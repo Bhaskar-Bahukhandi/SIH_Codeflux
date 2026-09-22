@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.api.auth import router as auth_router
 from app.api.inspections import router as inspections_router
 from app.core.config import get_settings
 from app.errors import AppError
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
+            headers=exc.headers,
             content={
                 "error": {
                     "code": exc.code,
@@ -29,6 +31,7 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    app.include_router(auth_router, prefix=settings.api_prefix)
     app.include_router(inspections_router, prefix=settings.api_prefix)
     return app
 

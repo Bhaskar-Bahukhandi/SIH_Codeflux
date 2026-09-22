@@ -10,15 +10,18 @@ This service is the central API foundation for persisted inspection data.
 - `GET /health`;
 - SQLAlchemy database foundation;
 - Alembic migrations;
-- inspection persistence;
-- create/list/get inspection endpoints;
+- persisted users with Officer / Supervisor / Admin roles;
+- Argon2 password hashing;
+- JWT login and current-user endpoint;
+- protected inspection API;
+- officer ownership and read isolation;
+- supervisor/admin inspection read access;
 - draft inspection editing;
-- draft -> pending-review submission;
-- user/role persistence foundation;
-- stable domain error shape for 404/409 cases;
-- isolated API/persistence tests.
+- `draft -> pending_review` submission;
+- stable domain error responses;
+- isolated API/persistence/auth tests.
 
-No OCR, Legal Metrology rule, report, authentication, or sync behavior is represented as working yet.
+No OCR, Legal Metrology rule, report, mobile capture, or sync behavior is represented as working yet.
 
 ## Local setup
 
@@ -30,12 +33,24 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Create a local `.env` from the repository `.env.example` and configure `DATABASE_URL`.
+Create a local `.env` from the repository `.env.example` and configure at least:
+
+- `DATABASE_URL`;
+- `JWT_SECRET` for any shared/non-development deployment.
 
 Apply migrations:
 
 ```bash
 alembic upgrade head
+```
+
+Create a prototype officer account:
+
+```bash
+python -m app.cli.create_user \
+  --email officer@example.test \
+  --name "Demo Officer" \
+  --role officer
 ```
 
 Run the API:
@@ -55,6 +70,12 @@ pytest
 PostgreSQL remains the production target. SQLite in tests is an isolated test dependency.
 
 Schema changes must use Alembic migrations. Runtime code must not silently recreate or mutate the production schema.
+
+## Authentication rule
+
+There is no public registration route. Prototype users are provisioned administratively.
+
+The default development JWT secret is rejected outside development/test. A deployment must provide a replacement secret.
 
 ## Lifecycle rule
 

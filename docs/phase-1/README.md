@@ -4,7 +4,7 @@ Status: In progress
 
 ## Goal
 
-Build the executable data and API foundation for inspections without pulling OCR, Legal Metrology rule evaluation, reporting, or mobile capture forward prematurely.
+Build the executable data, lifecycle and access-control foundation for inspections without pulling OCR, Legal Metrology rule evaluation, reporting, or mobile capture forward prematurely.
 
 ## Completed slice A — inspection persistence
 
@@ -15,40 +15,54 @@ Build the executable data and API foundation for inspections without pulling OCR
 - create/list/get inspection endpoints;
 - isolated persistence tests.
 
-## Current slice B — lifecycle and user-role foundation
+## Completed slice B — lifecycle and user-role foundation
 
-This slice adds:
-
-- persisted Officer / Supervisor / Admin role model;
+- persisted Officer / Supervisor / Admin roles;
 - optional officer ownership field on inspections;
-- explicit draft -> pending-review lifecycle transition;
+- `draft -> pending_review` lifecycle transition;
 - safe draft editing;
 - machine-readable domain 404/409 errors;
 - migration revision 0002;
-- tests for lifecycle safety and role persistence.
+- lifecycle and role tests.
+
+## Current slice C — authentication and access boundary
+
+This slice adds:
+
+- Argon2 password hashing;
+- signed time-limited JWT access tokens;
+- login and current-user endpoints;
+- administrative CLI user bootstrap;
+- officer ownership assigned from the authenticated identity;
+- officer read scope restricted to owned inspections;
+- supervisor/admin read access;
+- owner-only officer mutation;
+- deployment guard against weak/default JWT secrets;
+- migration revision 0003.
 
 ### Important boundary
 
-The user model is a data foundation only. There is no password/login flow and no unauthenticated user-management API in this slice.
+There is no public user registration and no default administrator account.
 
-The inspection API does not expose a finalize action yet. Finalization is intentionally deferred until the officer-review/report phase can support it honestly.
+The inspection API still does not expose finalization. Finalization remains deferred until the officer-review/report phase has the real evidence and decisions needed to make that state meaningful.
 
 ## Still not implemented
 
-- authentication and authorization;
 - package images/captures;
 - OCR and declaration extraction;
 - Legal Metrology rule execution;
 - officer finding review;
 - PDF report generation;
-- offline mobile synchronization.
+- offline mobile synchronization;
+- refresh tokens/MFA/SSO;
+- organization tenancy.
 
-## Next Phase 1 work
+## Remaining Phase 1 work
 
-1. configuration/startup validation and database readiness;
-2. authentication skeleton tied to the persisted user/role model;
-3. inspection audit-event foundation for state-changing actions;
-4. then close Phase 1 before starting image capture work.
+1. add database readiness/startup diagnostics;
+2. add append-only audit-event persistence for important state changes;
+3. run a final Phase 1 regression/migration validation;
+4. close Phase 1 before starting the image-capture phase.
 
 ## Validation gate
 
