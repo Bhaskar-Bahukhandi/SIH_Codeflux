@@ -39,7 +39,7 @@ See `docs/phase-2/image-quality.md`.
 
 ## Slice C — conservative perspective geometry
 
-Current work adds:
+Implemented:
 
 - normalized-derivative integrity verification;
 - dominant quadrilateral detection;
