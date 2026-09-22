@@ -31,20 +31,23 @@ The core workflow is:
 
 ## Current status
 
-**Phase 2 — Capture and evidence storage**
+**Phase 2 — Capture and preprocessing foundation**
 
-Phase 1 is complete and validated.
+Completed foundation now includes:
 
-Current Phase 2 work adds the first real package-image evidence path:
+- persisted/authenticated inspection workflow;
+- immutable package-image evidence;
+- generated protected media storage keys;
+- original SHA-256 integrity checks;
+- orientation-normalized derivatives;
+- versioned image-quality assessments;
+- sharpness, brightness/exposure and local glare heuristics;
+- explicit pass/review/retake capture guidance;
+- audit-traced upload and processing.
 
-- officer-owned draft inspections can receive multiple images;
-- original supported images are preserved byte-for-byte;
-- file type is verified from decoded image content;
-- SHA-256, dimensions, size, view type and uploader are stored;
-- inspection media remains behind authenticated access;
-- capture upload is audit-traced.
+Image-quality guidance is **not** a Legal Metrology verdict.
 
-This phase does **not** yet claim image-quality scoring, preprocessing, OCR, declaration extraction or Legal Metrology compliance results.
+The project still does not claim OCR, declaration extraction, validated perspective correction, font-size measurement, rule execution or final reports.
 
 ## Technical baseline
 
