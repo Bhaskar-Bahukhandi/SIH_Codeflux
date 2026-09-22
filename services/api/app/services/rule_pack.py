@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -29,16 +30,18 @@ class RulePackSource(BaseModel):
     title: str
     kind: str
     url: str
-    checked_on: str
+    checked_on: date
 
 
 class RuleDefinition(BaseModel):
     rule_id: str
     provision: str
+    effective_from: date
     declaration_type: DeclarationType
     check_type: str
     source_ids: list[str] = Field(min_length=1)
-    summary: str
+    applicability_note: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
 
 
 class RulePackDefinition(BaseModel):
@@ -47,7 +50,7 @@ class RulePackDefinition(BaseModel):
     version: str
     jurisdiction: str
     authority: str
-    verified_on: str
+    verified_on: date
     purpose: str
     supported_scope: RulePackScope
     sources: list[RulePackSource] = Field(min_length=1)
