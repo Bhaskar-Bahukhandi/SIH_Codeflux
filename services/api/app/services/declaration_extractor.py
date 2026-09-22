@@ -16,15 +16,14 @@ SUPPORTED_DECLARATION_TYPES = (
 
 _MRP = re.compile(
     r"\b(?:m\.?\s*r\.?\s*p\.?|maximum\s+retail\s+price|"
-    r"retail\s+sale\s+price)\b\s*[:\-]?\s*"
+    r"retail\s+sale\s+price)\s*[:\-]?\s*"
     r"(?:rs\.?|inr|₹)?\s*"
     r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
     re.IGNORECASE,
 )
 
 _NET_QUANTITY = re.compile(
-    r"\b(?:net\s*(?:qty\.?|quantity|wt\.?|weight|content))\b"
-    r"\s*[:\-]?\s*"
+    r"\bnet\s*(?:qty|quantity|wt|weight|content)\.?\s*[:\-]?\s*"
     r"([0-9]+(?:\.[0-9]+)?)\s*"
     r"(kg|kgs|kilogram|kilograms|g|gm|gms|gram|grams|"
     r"ml|millilitre|millilitres|milliliter|milliliters|"
