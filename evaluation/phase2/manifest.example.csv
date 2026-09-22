@@ -1,0 +1,3 @@
+case_id,image_path,dataset_type,expected_quality_status,expected_geometry_status,notes
+package-001,images/package-001.jpg,real_package,,,Fill expected statuses only after human review
+synthetic-001,images/synthetic-001.jpg,synthetic,retake_recommended,not_detected,Example synthetic regression row
