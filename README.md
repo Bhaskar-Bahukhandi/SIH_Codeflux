@@ -31,24 +31,24 @@ The core workflow is:
 
 ## Current status
 
-**Phase 2 — Capture and preprocessing foundation**
+**Phase 3 — OCR text-evidence foundation**
 
 Completed foundation now includes:
 
 - persisted/authenticated inspection workflow;
 - immutable package-image evidence;
-- generated protected media storage keys;
-- original SHA-256 integrity checks;
-- orientation-normalized derivatives;
-- versioned image-quality assessments;
-- sharpness, brightness/exposure and local glare heuristics;
-- explicit pass/review/retake capture guidance;
-- audit-traced upload and processing;
-- conservative perspective geometry with explicit fallback instead of forced correction.
+- protected media storage and SHA-256 integrity checks;
+- normalized and perspective-corrected derivatives with explicit fallback;
+- versioned image-quality and geometry assessments;
+- reproducible Phase 2 validation harness;
+- append-only OCR runs;
+- OCR source-derivative/checksum provenance;
+- ordered recognized text blocks with engine score and polygon;
+- PaddleOCR 3.x runtime adapter behind a testable OCR interface.
 
-Image-quality guidance is **not** a Legal Metrology verdict.
+The project still does **not** claim declaration extraction, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.
 
-The project still does not claim OCR, declaration extraction, physical font-size measurement, rule execution or final reports. Geometry correction is deliberately limited to cases that pass a conservative engineering gate.
+OCR output is evidence only. Recognition score is an OCR-engine score, not a calibrated legal confidence value, and OCR failure does not by itself prove a mandatory declaration is absent.
 
 ## Technical baseline
 
