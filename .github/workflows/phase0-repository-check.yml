@@ -1,0 +1,63 @@
+name: Phase 0 Repository Check
+
+on:
+  push:
+    branches:
+      - main
+      - "phase/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required foundation files
+        shell: bash
+        run: |
+          set -eu
+          required=(
+            "README.md"
+            "CONTRIBUTING.md"
+            ".env.example"
+            "docs/phase-0/README.md"
+            "docs/architecture/README.md"
+            "docs/legal/README.md"
+            "docs/decisions/0001-technical-baseline.md"
+            "docs/decisions/0002-phase0-scope-freeze.md"
+            "docs/legal/initial-rule-matrix.md"
+            "docs/phase-0/validation-checklist.md"
+            "apps/mobile/README.md"
+            "apps/dashboard/README.md"
+            "services/api/README.md"
+            "packages/rulepacks/README.md"
+            "evaluation/README.md"
+            "tests/README.md"
+          )
+
+          for path in "${required[@]}"; do
+            if [ ! -f "$path" ]; then
+              echo "Missing required foundation file: $path"
+              exit 1
+            fi
+          done
+
+          echo "Phase 0 foundation structure is present."
+
+      - name: Guard against committed local secret files
+        shell: bash
+        run: |
+          set -eu
+          bad_files="$(git ls-files | grep -E '(^|/)(\.env|[^/]+\.(pem|key))$' || true)"
+          if [ -n "$bad_files" ]; then
+            echo "Potential local secret files are tracked:"
+            echo "$bad_files"
+            exit 1
+          fi
+
+          echo "No blocked local secret files are tracked."

@@ -1,0 +1,56 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+build/
+coverage/
+android/.gradle/
+ios/Pods/
+
+# Node / React
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local databases and generated evidence
+*.sqlite
+*.sqlite3
+*.db
+local_data/
+uploads/
+generated_reports/
+tmp/
+
+# Logs
+*.log
+logs/
