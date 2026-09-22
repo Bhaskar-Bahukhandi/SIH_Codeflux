@@ -17,7 +17,7 @@ The API contains the data/access, capture/preprocessing, OCR evidence, declarati
 - deterministic MRP and net-quantity candidate extraction;
 - OCR-block provenance and multi-image conflict preservation;
 - versioned source-gated rule pack for Rule 6(1)(c) net quantity evidence and Rule 6(1)(e) MRP evidence;
-- persisted rule-pack ID/version/SHA-256, source extraction run and officer context;
+- persisted rule-pack ID/version/SHA-256 plus a full logical rule-pack snapshot, source extraction run and officer context;
 - explicit pass, manual_verification_required, indeterminate, and not_evaluated behavior for the current pack.
 
 Physical measurement, confirmed-absence findings, officer finding approval/finalization, reports and offline sync are not represented as working yet.
