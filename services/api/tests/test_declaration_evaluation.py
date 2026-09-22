@@ -60,6 +60,8 @@ def test_evaluation_reports_exact_matches_and_real_actual_ocr_count(tmp_path):
 
     assert report["real_package_actual_ocr_case_count"] == 1
     assert report["real_package_actual_ocr_exact_match_rate"] == 1.0
+    assert report["real_package_actual_ocr_metrics"]["precision"] == 1.0
+    assert report["real_package_actual_ocr_metrics"]["recall"] == 1.0
     assert report["overall"] == {
         "true_positive": 2,
         "false_positive": 0,
@@ -107,7 +109,7 @@ def test_false_positive_and_false_negative_are_kept_visible(tmp_path):
     assert report["overall"]["false_negative"] == 1
     assert report["overall"]["precision"] == 0.0
     assert report["overall"]["recall"] == 0.0
-    assert report["overall"]["f1"] is None
+    assert report["overall"]["f1"] == 0.0
     assert len(report["cases"][0]["false_positives"]) == 1
     assert len(report["cases"][0]["false_negatives"]) == 1
     assert "no_real_package_actual_ocr_cases" in report["warnings"]
@@ -155,10 +157,14 @@ def test_evidence_gate_fails_without_real_actual_ocr_cases(tmp_path):
         report,
         require_real_actual_ocr=1,
         min_real_exact_match_rate=0.8,
+        min_real_precision=0.9,
+        min_real_recall=0.9,
     )
 
     assert "real_actual_ocr_count:0<1" in failures
     assert "real_exact_match_rate:unavailable" in failures
+    assert "real_precision:unavailable" in failures
+    assert "real_recall:unavailable" in failures
 
 
 def test_manifest_rejects_out_of_range_ocr_score(tmp_path):
