@@ -4,30 +4,15 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
 from app.db import get_db
-from app.errors import not_found
 from app.models.audit import AuditEventType
 from app.models.inspection import Inspection
 from app.models.user import User, UserRole
 from app.schemas.inspection import InspectionCreate, InspectionRead, InspectionUpdate
 from app.services.audit import record_inspection_event
+from app.services.inspection_access import get_visible_inspection_or_raise
 from app.services.inspection_lifecycle import require_draft, submit_for_review
 
 router = APIRouter(prefix="/inspections", tags=["inspections"])
-
-
-def get_visible_inspection_or_raise(
-    db: Session,
-    inspection_id: str,
-    user: User,
-) -> Inspection:
-    inspection = db.get(Inspection, inspection_id)
-    if inspection is None:
-        raise not_found("inspection_not_found", "Inspection not found.")
-
-    if user.role is UserRole.OFFICER and inspection.officer_id != user.id:
-        raise not_found("inspection_not_found", "Inspection not found.")
-
-    return inspection
 
 
 @router.post("", response_model=InspectionRead, status_code=status.HTTP_201_CREATED)
