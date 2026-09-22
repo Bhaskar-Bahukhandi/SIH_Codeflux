@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     quality_glare_saturation_max: int = Field(default=40, ge=0, le=255)
     quality_glare_component_max_fraction: float = Field(default=0.08, gt=0, le=1)
 
+    geometry_min_area_ratio: float = Field(default=0.20, gt=0, lt=1)
+    geometry_max_area_ratio: float = Field(default=0.95, gt=0, le=1)
+    geometry_min_side_px: float = Field(default=60.0, gt=0)
+    geometry_min_angle_score: float = Field(default=0.60, ge=0, le=1)
+    geometry_correction_score: float = Field(default=0.78, ge=0, le=1)
+    geometry_detection_max_dimension: int = Field(default=1600, ge=320, le=4096)
+    geometry_canny_low: int = Field(default=60, ge=0, le=255)
+    geometry_canny_high: int = Field(default=180, ge=0, le=255)
+    geometry_approximation_epsilon: float = Field(default=0.02, gt=0, le=0.10)
+
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "codeflux-api"
@@ -75,6 +85,15 @@ def validate_runtime_settings(settings: Settings) -> None:
         raise RuntimeError(
             "QUALITY_GLARE_FRACTION_REVIEW must be <= "
             "QUALITY_GLARE_FRACTION_RETAKE."
+        )
+
+    if settings.geometry_min_area_ratio >= settings.geometry_max_area_ratio:
+        raise RuntimeError(
+            "GEOMETRY_MIN_AREA_RATIO must be lower than GEOMETRY_MAX_AREA_RATIO."
+        )
+    if settings.geometry_canny_low >= settings.geometry_canny_high:
+        raise RuntimeError(
+            "GEOMETRY_CANNY_LOW must be lower than GEOMETRY_CANNY_HIGH."
         )
 
 
