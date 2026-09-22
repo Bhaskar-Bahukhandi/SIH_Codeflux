@@ -151,11 +151,48 @@ def test_ocr_gates_fail_when_required_real_evidence_is_missing(tmp_path):
         report,
         require_real_package=1,
         require_labeled_real=1,
+        require_scored_real=1,
         max_real_cer=0.2,
         max_real_wer=0.3,
     )
 
     assert "real_package_count:0<1" in failures
     assert "labeled_real_package_count:0<1" in failures
+    assert "scored_real_package_count:0<1" in failures
     assert "real_package_cer:unavailable" in failures
     assert "real_package_wer:unavailable" in failures
+
+
+class FailingEvaluationEngine(FakeEvaluationEngine):
+    def extract(self, _image_bytes):
+        from app.services.ocr_engine import OcrInferenceFailed
+
+        raise OcrInferenceFailed("synthetic inference failure")
+
+
+def test_ocr_evaluation_records_inference_failure_instead_of_aborting(tmp_path):
+    image = tmp_path / "real.jpg"
+    image_file(image)
+    truth = tmp_path / "real.txt"
+    truth.write_text("MRP Rs. 50", encoding="utf-8")
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        ["real-1,real.jpg,real_package,real.txt,engine failure fixture"],
+    )
+
+    report = evaluate_ocr_manifest(
+        manifest,
+        settings=Settings(_env_file=None, app_env="test"),
+        engine=FailingEvaluationEngine(),
+    )
+
+    assert report["failed_case_count"] == 1
+    assert report["successful_case_count"] == 0
+    assert report["real_package_labeled_count"] == 1
+    assert report["real_package_scored_count"] == 0
+    assert report["real_package_mean_character_error_rate"] is None
+    assert report["cases"][0]["status"] == "ocr_error"
+    assert report["cases"][0]["error_code"] == "ocr_inference_failed"
+    assert "one_or_more_cases_failed" in report["warnings"]
+    assert "no_scored_real_package_cases" in report["warnings"]
