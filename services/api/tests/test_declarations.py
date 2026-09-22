@@ -300,7 +300,7 @@ def test_stale_ocr_capture_is_skipped_when_another_current_source_exists(
         client, inspection["id"], headers, "back"
     )
 
-    seed_ocr(
+    stale_run, _ = seed_ocr(
         db_session,
         capture_id=stale_capture["id"],
         derivative=stale_derivative,
@@ -335,13 +335,7 @@ def test_stale_ocr_capture_is_skipped_when_another_current_source_exists(
         {
             "capture_id": stale_capture["id"],
             "reason": "stale_ocr",
-            "ocr_run_id": payload["run"]["source_ocr_run_ids"][0]
-            if False
-            else next(
-                item["ocr_run_id"]
-                for item in payload["run"]["skipped_sources"]
-                if item["capture_id"] == stale_capture["id"]
-            ),
+            "ocr_run_id": stale_run.id,
         }
     ]
 
