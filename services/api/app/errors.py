@@ -42,3 +42,11 @@ def forbidden(code: str, message: str) -> AppError:
         message=message,
         status_code=status.HTTP_403_FORBIDDEN,
     )
+
+
+def service_unavailable(code: str, message: str) -> AppError:
+    return AppError(
+        code=code,
+        message=message,
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )

@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user, require_officer
 from app.db import get_db
 from app.errors import not_found
+from app.models.audit import AuditEventType
 from app.models.inspection import Inspection
 from app.models.user import User, UserRole
 from app.schemas.inspection import InspectionCreate, InspectionRead, InspectionUpdate
+from app.services.audit import record_inspection_event
 from app.services.inspection_lifecycle import require_draft, submit_for_review
 
 router = APIRouter(prefix="/inspections", tags=["inspections"])
@@ -40,6 +42,16 @@ def create_inspection(
         officer_id=officer.id,
     )
     db.add(inspection)
+    db.flush()
+
+    record_inspection_event(
+        db,
+        inspection_id=inspection.id,
+        actor_user_id=officer.id,
+        event_type=AuditEventType.INSPECTION_CREATED,
+        details={"status": inspection.status.value},
+    )
+
     db.commit()
     db.refresh(inspection)
     return inspection
@@ -75,11 +87,33 @@ def update_draft_inspection(
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
     require_draft(inspection)
 
+    changes: dict[str, dict[str, str | None]] = {}
     fields_set = payload.model_fields_set
+
     if "product_name" in fields_set and payload.product_name is not None:
-        inspection.product_name = payload.product_name
+        if inspection.product_name != payload.product_name:
+            changes["product_name"] = {
+                "from": inspection.product_name,
+                "to": payload.product_name,
+            }
+            inspection.product_name = payload.product_name
+
     if "product_identifier" in fields_set:
-        inspection.product_identifier = payload.product_identifier
+        if inspection.product_identifier != payload.product_identifier:
+            changes["product_identifier"] = {
+                "from": inspection.product_identifier,
+                "to": payload.product_identifier,
+            }
+            inspection.product_identifier = payload.product_identifier
+
+    if changes:
+        record_inspection_event(
+            db,
+            inspection_id=inspection.id,
+            actor_user_id=officer.id,
+            event_type=AuditEventType.INSPECTION_UPDATED,
+            details={"changes": changes},
+        )
 
     db.commit()
     db.refresh(inspection)
@@ -93,7 +127,19 @@ def submit_inspection_for_review(
     officer: User = Depends(require_officer),
 ) -> Inspection:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    previous_status = inspection.status.value
     submit_for_review(inspection)
+
+    record_inspection_event(
+        db,
+        inspection_id=inspection.id,
+        actor_user_id=officer.id,
+        event_type=AuditEventType.INSPECTION_SUBMITTED,
+        details={
+            "from_status": previous_status,
+            "to_status": inspection.status.value,
+        },
+    )
 
     db.commit()
     db.refresh(inspection)
