@@ -30,6 +30,7 @@ class User(Base):
     )
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    password_hash: Mapped[str | None] = mapped_column(String(512), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         SqlEnum(UserRole, native_enum=False),
         nullable=False,
