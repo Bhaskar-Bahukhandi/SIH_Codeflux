@@ -68,6 +68,7 @@ class RuleEvaluationRun(Base):
     rule_pack_id: Mapped[str] = mapped_column(String(100), nullable=False)
     rule_pack_version: Mapped[str] = mapped_column(String(64), nullable=False)
     rule_pack_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    rule_pack_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     context_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
