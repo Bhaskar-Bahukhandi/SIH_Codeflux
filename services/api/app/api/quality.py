@@ -61,6 +61,19 @@ def process_capture(
 
     try:
         original_data = original_path.read_bytes()
+    except OSError:
+        raise service_unavailable(
+            "capture_storage_unavailable",
+            "Capture content is temporarily unavailable.",
+        )
+
+    if sha256(original_data).hexdigest() != capture.sha256:
+        raise service_unavailable(
+            "capture_integrity_mismatch",
+            "Capture evidence failed its integrity check.",
+        )
+
+    try:
         normalized = normalize_capture(original_data)
     except OSError:
         raise service_unavailable(
@@ -81,7 +94,13 @@ def process_capture(
     )
     derivative_digest = sha256(normalized.data).hexdigest()
 
-    storage.save(derivative_key, normalized.data)
+    try:
+        storage.save(derivative_key, normalized.data)
+    except OSError:
+        raise service_unavailable(
+            "capture_storage_unavailable",
+            "Capture derivative could not be stored.",
+        )
 
     derivative = CaptureDerivative(
         id=derivative_id,
@@ -95,39 +114,40 @@ def process_capture(
         width_px=normalized.width_px,
         height_px=normalized.height_px,
     )
-    db.add(derivative)
-    db.flush()
-
-    assessment = CaptureQualityAssessment(
-        capture_id=capture.id,
-        derivative_id=derivative.id,
-        algorithm_version=QUALITY_ALGORITHM_VERSION,
-        status=quality_result.status,
-        sharpness_score=quality_result.sharpness_score,
-        brightness_mean=quality_result.brightness_mean,
-        dark_fraction=quality_result.dark_fraction,
-        bright_fraction=quality_result.bright_fraction,
-        glare_fraction=quality_result.glare_fraction,
-        reasons=quality_result.reasons,
-        thresholds=thresholds.as_dict(),
-    )
-    db.add(assessment)
-
-    record_inspection_event(
-        db,
-        inspection_id=inspection.id,
-        actor_user_id=officer.id,
-        event_type=AuditEventType.CAPTURE_PROCESSED,
-        details={
-            "capture_id": capture.id,
-            "derivative_id": derivative.id,
-            "quality_status": assessment.status.value,
-            "processing_version": PREPROCESSING_VERSION,
-            "quality_algorithm_version": QUALITY_ALGORITHM_VERSION,
-        },
-    )
 
     try:
+        db.add(derivative)
+        db.flush()
+
+        assessment = CaptureQualityAssessment(
+            capture_id=capture.id,
+            derivative_id=derivative.id,
+            algorithm_version=QUALITY_ALGORITHM_VERSION,
+            status=quality_result.status,
+            sharpness_score=quality_result.sharpness_score,
+            brightness_mean=quality_result.brightness_mean,
+            dark_fraction=quality_result.dark_fraction,
+            bright_fraction=quality_result.bright_fraction,
+            glare_fraction=quality_result.glare_fraction,
+            reasons=quality_result.reasons,
+            thresholds=thresholds.as_dict(),
+        )
+        db.add(assessment)
+
+        record_inspection_event(
+            db,
+            inspection_id=inspection.id,
+            actor_user_id=officer.id,
+            event_type=AuditEventType.CAPTURE_PROCESSED,
+            details={
+                "capture_id": capture.id,
+                "derivative_id": derivative.id,
+                "quality_status": assessment.status.value,
+                "processing_version": PREPROCESSING_VERSION,
+                "quality_algorithm_version": QUALITY_ALGORITHM_VERSION,
+            },
+        )
+
         db.commit()
     except Exception:
         db.rollback()
