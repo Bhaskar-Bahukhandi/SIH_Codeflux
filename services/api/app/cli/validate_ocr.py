@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.core.config import get_settings
 from app.evaluation.ocr import evaluate_ocr_manifest, ocr_gate_failures
-from app.services.ocr_engine import OcrBackendUnavailable, _cached_paddle_engine
+from app.services.ocr_engine import OcrBackendUnavailable, build_ocr_engine
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,13 +27,7 @@ def main() -> None:
     settings = get_settings()
 
     try:
-        engine = _cached_paddle_engine(
-            settings.ocr_inference_engine,
-            settings.ocr_language,
-            settings.ocr_model_version,
-            settings.ocr_device,
-            settings.ocr_min_confidence,
-        )
+        engine = build_ocr_engine(settings)
     except OcrBackendUnavailable as exc:
         raise SystemExit(
             "OCR runtime is unavailable. Install/configure the OCR extra "
