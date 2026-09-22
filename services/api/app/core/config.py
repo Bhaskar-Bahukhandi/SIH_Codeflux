@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     geometry_canny_high: int = Field(default=180, ge=0, le=255)
     geometry_approximation_epsilon: float = Field(default=0.02, gt=0, le=0.10)
 
+    ocr_inference_engine: Literal["paddle", "transformers"] = "paddle"
+    ocr_language: str = "en"
+    ocr_model_version: str = "PP-OCRv5"
+    ocr_device: str = "cpu"
+    ocr_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "codeflux-api"
@@ -95,6 +101,13 @@ def validate_runtime_settings(settings: Settings) -> None:
         raise RuntimeError(
             "GEOMETRY_CANNY_LOW must be lower than GEOMETRY_CANNY_HIGH."
         )
+
+    if not settings.ocr_language.strip():
+        raise RuntimeError("OCR_LANGUAGE must not be blank.")
+    if not settings.ocr_model_version.strip():
+        raise RuntimeError("OCR_MODEL_VERSION must not be blank.")
+    if not settings.ocr_device.strip():
+        raise RuntimeError("OCR_DEVICE must not be blank.")
 
 
 @lru_cache
