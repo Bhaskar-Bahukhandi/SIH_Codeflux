@@ -163,6 +163,8 @@ def evaluate_current_declarations(
                 **item.details,
                 "source_ids": item.rule.source_ids,
                 "check_type": item.rule.check_type,
+                "effective_from": item.rule.effective_from.isoformat(),
+                "applicability_note": item.rule.applicability_note,
             },
         )
         db.add(result)
