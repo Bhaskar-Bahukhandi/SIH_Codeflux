@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
+from app.core.config import Settings
 from app.models.quality import CaptureQualityStatus
 
 PREPROCESSING_VERSION = "normalize-v1"
@@ -51,6 +52,24 @@ class QualityResult:
     bright_fraction: float
     glare_fraction: float
     reasons: list[str]
+
+
+def quality_thresholds_from_settings(settings: Settings) -> QualityThresholds:
+    return QualityThresholds(
+        sharpness_retake=settings.quality_sharpness_retake,
+        sharpness_review=settings.quality_sharpness_review,
+        brightness_retake_low=settings.quality_brightness_retake_low,
+        brightness_retake_high=settings.quality_brightness_retake_high,
+        brightness_review_low=settings.quality_brightness_review_low,
+        brightness_review_high=settings.quality_brightness_review_high,
+        dark_fraction_retake=settings.quality_dark_fraction_retake,
+        bright_fraction_retake=settings.quality_bright_fraction_retake,
+        glare_fraction_retake=settings.quality_glare_fraction_retake,
+        glare_fraction_review=settings.quality_glare_fraction_review,
+        glare_intensity=settings.quality_glare_intensity,
+        glare_saturation_max=settings.quality_glare_saturation_max,
+        glare_component_max_fraction=settings.quality_glare_component_max_fraction,
+    )
 
 
 def normalize_capture(data: bytes) -> NormalizedImage:
