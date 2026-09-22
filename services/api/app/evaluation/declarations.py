@@ -179,13 +179,14 @@ def load_declaration_evaluation_manifest(
 def _metric_summary(tp: int, fp: int, fn: int) -> dict:
     precision = tp / (tp + fp) if tp + fp else None
     recall = tp / (tp + fn) if tp + fn else None
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if precision is not None
-        and recall is not None
-        and precision + recall > 0
-        else None
-    )
+    if precision is not None and recall is not None:
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if precision + recall > 0
+            else 0.0
+        )
+    else:
+        f1 = None
     return {
         "true_positive": tp,
         "false_positive": fp,
@@ -269,6 +270,10 @@ def evaluate_declaration_manifest(path: Path) -> dict:
                     predicted_map[key]
                     for key in sorted(predicted_map)
                 ],
+                "true_positives": [
+                    predicted_map[key]
+                    for key in sorted(tp_keys)
+                ],
                 "false_positives": [
                     predicted_map[key]
                     for key in sorted(fp_keys)
@@ -302,6 +307,9 @@ def evaluate_declaration_manifest(path: Path) -> dict:
         and case["block_source"] == "actual_ocr"
     ]
     real_exact_count = sum(1 for case in real_actual if case["exact_match"])
+    real_tp = sum(len(case["true_positives"]) for case in real_actual)
+    real_fp = sum(len(case["false_positives"]) for case in real_actual)
+    real_fn = sum(len(case["false_negatives"]) for case in real_actual)
 
     warnings: list[str] = []
     if not real_actual:
@@ -319,6 +327,11 @@ def evaluate_declaration_manifest(path: Path) -> dict:
             round(real_exact_count / len(real_actual), 6)
             if real_actual
             else None
+        ),
+        "real_package_actual_ocr_metrics": _metric_summary(
+            real_tp,
+            real_fp,
+            real_fn,
         ),
         "overall": _metric_summary(overall_tp, overall_fp, overall_fn),
         "by_type": {
@@ -339,6 +352,8 @@ def declaration_gate_failures(
     *,
     require_real_actual_ocr: int = 0,
     min_real_exact_match_rate: float | None = None,
+    min_real_precision: float | None = None,
+    min_real_recall: float | None = None,
     min_overall_precision: float | None = None,
     min_overall_recall: float | None = None,
 ) -> list[str]:
@@ -357,6 +372,24 @@ def declaration_gate_failures(
         elif real_exact < min_real_exact_match_rate:
             failures.append(
                 f"real_exact_match_rate:{real_exact}<{min_real_exact_match_rate}"
+            )
+
+    real_precision = report["real_package_actual_ocr_metrics"]["precision"]
+    if min_real_precision is not None:
+        if real_precision is None:
+            failures.append("real_precision:unavailable")
+        elif real_precision < min_real_precision:
+            failures.append(
+                f"real_precision:{real_precision}<{min_real_precision}"
+            )
+
+    real_recall = report["real_package_actual_ocr_metrics"]["recall"]
+    if min_real_recall is not None:
+        if real_recall is None:
+            failures.append("real_recall:unavailable")
+        elif real_recall < min_real_recall:
+            failures.append(
+                f"real_recall:{real_recall}<{min_real_recall}"
             )
 
     precision = report["overall"]["precision"]
