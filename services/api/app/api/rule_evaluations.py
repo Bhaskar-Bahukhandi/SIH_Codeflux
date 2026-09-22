@@ -143,6 +143,7 @@ def evaluate_current_declarations(
         rule_pack_id=loaded_pack.definition.rule_pack_id,
         rule_pack_version=loaded_pack.definition.version,
         rule_pack_sha256=loaded_pack.sha256,
+        rule_pack_snapshot=loaded_pack.definition.model_dump(mode="json"),
         context_snapshot=payload.context.model_dump(),
         result_count=len(evaluated),
     )
