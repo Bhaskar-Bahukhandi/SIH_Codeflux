@@ -13,7 +13,9 @@ class DeclarationExtractionRunRead(BaseModel):
     fusion_version: str
     inspection_capture_count: int
     source_capture_count: int
+    source_capture_ids: list[str]
     source_ocr_run_ids: list[str]
+    skipped_sources: list[dict]
     observation_count: int
     created_at: datetime
 
