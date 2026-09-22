@@ -31,21 +31,20 @@ The core workflow is:
 
 ## Current status
 
-**Phase 1 — Data foundation and access control**
+**Phase 2 — Capture and evidence storage**
 
-Implemented foundation:
+Phase 1 is complete and validated.
 
-- versioned database migrations;
-- persisted inspections and user roles;
-- draft/pending-review lifecycle;
-- real JWT authentication with Argon2 password hashing;
-- officer ownership and role access boundaries;
-- append-only inspection audit events;
-- liveness and database-readiness checks.
+Current Phase 2 work adds the first real package-image evidence path:
 
-Phase 1 intentionally does **not** claim image capture, OCR, Legal Metrology rule execution, reporting or offline synchronization yet.
+- officer-owned draft inspections can receive multiple images;
+- original supported images are preserved byte-for-byte;
+- file type is verified from decoded image content;
+- SHA-256, dimensions, size, view type and uploader are stored;
+- inspection media remains behind authenticated access;
+- capture upload is audit-traced.
 
-The next roadmap phase is the package image-capture and evidence-storage pipeline.
+This phase does **not** yet claim image-quality scoring, preprocessing, OCR, declaration extraction or Legal Metrology compliance results.
 
 ## Technical baseline
 

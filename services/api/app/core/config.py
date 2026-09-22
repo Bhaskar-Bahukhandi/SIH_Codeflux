@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
@@ -13,6 +14,10 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://codeflux:codeflux@localhost:5432/codeflux"
 
+    media_root: Path = Path("./local_data/media")
+    max_capture_mb: int = Field(default=12, ge=1, le=50)
+    max_capture_pixels: int = Field(default=40_000_000, ge=1_000_000, le=100_000_000)
+
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "codeflux-api"
@@ -23,6 +28,10 @@ class Settings(BaseSettings):
         env_prefix="",
         extra="ignore",
     )
+
+    @property
+    def max_capture_bytes(self) -> int:
+        return self.max_capture_mb * 1024 * 1024
 
 
 def validate_runtime_settings(settings: Settings) -> None:
