@@ -5,7 +5,7 @@ Evaluation grows with each implementation phase and must distinguish synthetic r
 Current evaluation areas include:
 
 - Phase 2 image-quality / geometry validation;
-- OCR samples with expected text;
+- Phase 3 OCR text-fidelity validation;
 - declaration-extraction ground truth;
 - rule-level compliant / potential-issue / uncertain cases;
 - officer-correction traceability;
@@ -20,4 +20,5 @@ A module is not considered validated only because its unit tests pass or its UI 
 
 Synthetic data is useful for deterministic regression tests, but it must not be presented as proof of field performance.
 
-For Phase 2, see `evaluation/phase2/README.md`.
+- Phase 2: see `evaluation/phase2/README.md`.
+- Phase 3 OCR: see `evaluation/phase3/README.md`.
