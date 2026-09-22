@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from io import BytesIO
-from math import sqrt
-
 import cv2
 import numpy as np
 from PIL import Image
