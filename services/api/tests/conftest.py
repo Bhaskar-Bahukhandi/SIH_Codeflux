@@ -10,6 +10,7 @@ from app.db import Base, get_db
 from app.main import create_app
 from app.models.user import User, UserRole
 from app.security import hash_password
+from app.services.media_storage import LocalMediaStorage, get_media_storage
 
 DEFAULT_TEST_PASSWORD = "TestPassword123!"
 
@@ -37,13 +38,25 @@ def db_session() -> Session:
 
 
 @pytest.fixture
-def client(db_session: Session) -> TestClient:
+def media_storage(tmp_path) -> LocalMediaStorage:
+    return LocalMediaStorage(tmp_path / "media")
+
+
+@pytest.fixture
+def client(
+    db_session: Session,
+    media_storage: LocalMediaStorage,
+) -> TestClient:
     app = create_app()
 
     def override_get_db():
         yield db_session
 
+    def override_media_storage():
+        return media_storage
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_media_storage] = override_media_storage
 
     with TestClient(app) as test_client:
         yield test_client
