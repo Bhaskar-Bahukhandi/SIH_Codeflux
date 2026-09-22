@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from app.core.config import Settings
-from app.evaluation.phase2 import evaluate_phase2_manifest, load_phase2_manifest
+from app.evaluation.phase2 import (\n    evaluate_phase2_manifest,\n    load_phase2_manifest,\n    phase2_gate_failures,\n)
 
 
 def blank_jpeg(path: Path) -> None:
@@ -154,3 +154,39 @@ def test_evaluation_fails_when_manifest_image_is_missing(tmp_path):
             manifest,
             settings=Settings(_env_file=None, app_env="test"),
         )
+
+
+def test_validation_gates_fail_without_required_real_evidence(tmp_path):
+    image = tmp_path / "synthetic.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "synthetic-1",
+                "image_path": image.name,
+                "dataset_type": "synthetic",
+                "expected_quality_status": "retake_recommended",
+                "expected_geometry_status": "not_detected",
+                "notes": "",
+            }
+        ],
+    )
+
+    report = evaluate_phase2_manifest(
+        manifest,
+        settings=Settings(_env_file=None, app_env="test"),
+    )
+    failures = phase2_gate_failures(
+        report,
+        require_real_package=1,
+        require_labeled_real_quality=1,
+        require_labeled_real_geometry=1,
+        fail_on_mismatch=True,
+    )
+
+    assert "real_package_count:0<1" in failures
+    assert "labeled_real_quality_count:0<1" in failures
+    assert "labeled_real_geometry_count:0<1" in failures
+    assert all(not item.startswith("status_mismatches:") for item in failures)
