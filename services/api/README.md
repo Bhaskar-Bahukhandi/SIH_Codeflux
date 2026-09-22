@@ -21,9 +21,11 @@ The API contains the completed Phase 1 data/access foundation and the current Ph
 - EXIF orientation-normalized derivative creation;
 - OpenCV/Pillow image-quality metrics;
 - versioned quality assessments with stored threshold snapshots;
-- protected derivative and latest-quality retrieval.
+- protected derivative and latest-quality retrieval;
+- conservative quadrilateral geometry analysis;
+- optional perspective-corrected derivative with normalized-image fallback.
 
-OCR, declaration extraction, perspective correction, Legal Metrology rule execution, reports and offline sync are not represented as working yet.
+OCR, declaration extraction, physical measurement, Legal Metrology rule execution, reports and offline sync are not represented as working yet.
 
 ## Local setup
 
@@ -82,3 +84,17 @@ The v1 quality status is capture guidance only. It must never be translated into
 ## Database rule
 
 PostgreSQL remains the production target. SQLite in tests is isolated test infrastructure. Schema changes use Alembic migrations.
+
+
+## Geometry endpoints
+
+After capture preprocessing:
+
+- `POST /api/v1/inspections/{inspection_id}/captures/{capture_id}/geometry/analyze`
+- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/geometry/latest`
+
+Geometry analysis can return `not_detected`, `review_recommended`, or `correction_available`.
+
+Only the last state creates a new `perspective_corrected` derivative. The normalized derivative remains the fallback in every case.
+
+Geometry scores are engineering heuristics, not probabilities or legal conclusions.
