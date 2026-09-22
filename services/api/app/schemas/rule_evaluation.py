@@ -23,6 +23,7 @@ class RuleEvaluationRunRead(BaseModel):
     rule_pack_id: str
     rule_pack_version: str
     rule_pack_sha256: str
+    rule_pack_snapshot: dict
     context_snapshot: dict
     result_count: int
     created_at: datetime
