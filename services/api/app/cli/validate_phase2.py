@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 
 from app.core.config import get_settings
-from app.evaluation.phase2 import evaluate_phase2_manifest
+from app.evaluation.phase2 import (
+    evaluate_phase2_manifest,
+    phase2_gate_failures,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,37 +59,22 @@ def main() -> None:
         settings=get_settings(),
     )
 
-    real_count = report["dataset_counts"]["real_package"]
-    if real_count < args.require_real_package:
-        raise SystemExit(
-            f"Real-package gate failed: {real_count} < "
-            f"{args.require_real_package}."
-        )
-
-    quality_real = report["real_package_labeled_quality_count"]
-    if quality_real < args.require_labeled_real_quality:
-        raise SystemExit(
-            f"Labeled real-package quality gate failed: {quality_real} < "
-            f"{args.require_labeled_real_quality}."
-        )
-
-    geometry_real = report["real_package_labeled_geometry_count"]
-    if geometry_real < args.require_labeled_real_geometry:
-        raise SystemExit(
-            f"Labeled real-package geometry gate failed: {geometry_real} < "
-            f"{args.require_labeled_real_geometry}."
-        )
-
-    if args.fail_on_mismatch:
-        mismatches = (
-            report["quality_status_agreement"]["mismatch_case_ids"]
-            + report["geometry_status_agreement"]["mismatch_case_ids"]
-        )
-        if mismatches:
-            raise SystemExit(
-                "Expected-status mismatches: "
-                + ", ".join(sorted(set(mismatches)))
-            )
+    requested_gates = {
+        "require_real_package": args.require_real_package,
+        "require_labeled_real_quality": args.require_labeled_real_quality,
+        "require_labeled_real_geometry": args.require_labeled_real_geometry,
+        "fail_on_mismatch": args.fail_on_mismatch,
+    }
+    failures = phase2_gate_failures(
+        report,
+        require_real_package=args.require_real_package,
+        require_labeled_real_quality=args.require_labeled_real_quality,
+        require_labeled_real_geometry=args.require_labeled_real_geometry,
+        fail_on_mismatch=args.fail_on_mismatch,
+    )
+    report["requested_gates"] = requested_gates
+    report["gate_failures"] = failures
+    report["gates_passed"] = not failures
 
     output = args.output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -98,9 +86,14 @@ def main() -> None:
     print(
         "Phase 2 validation complete: "
         f"{report['case_count']} cases; "
-        f"{real_count} real_package; "
+        f"{report['dataset_counts']['real_package']} real_package; "
         f"report={output}"
     )
+
+    if failures:
+        raise SystemExit(
+            "Validation gates failed: " + "; ".join(failures)
+        )
 
 
 if __name__ == "__main__":
