@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -298,3 +298,48 @@ def evaluate_phase2_manifest(
         "warnings": warnings,
         "cases": cases,
     }
+
+
+def phase2_gate_failures(
+    report: dict,
+    *,
+    require_real_package: int = 0,
+    require_labeled_real_quality: int = 0,
+    require_labeled_real_geometry: int = 0,
+    fail_on_mismatch: bool = False,
+) -> list[str]:
+    failures: list[str] = []
+
+    real_count = int(report["dataset_counts"]["real_package"])
+    if real_count < require_real_package:
+        failures.append(
+            f"real_package_count:{real_count}<{require_real_package}"
+        )
+
+    quality_real = int(report["real_package_labeled_quality_count"])
+    if quality_real < require_labeled_real_quality:
+        failures.append(
+            "labeled_real_quality_count:"
+            f"{quality_real}<{require_labeled_real_quality}"
+        )
+
+    geometry_real = int(report["real_package_labeled_geometry_count"])
+    if geometry_real < require_labeled_real_geometry:
+        failures.append(
+            "labeled_real_geometry_count:"
+            f"{geometry_real}<{require_labeled_real_geometry}"
+        )
+
+    if fail_on_mismatch:
+        mismatch_ids = sorted(
+            set(
+                report["quality_status_agreement"]["mismatch_case_ids"]
+                + report["geometry_status_agreement"]["mismatch_case_ids"]
+            )
+        )
+        if mismatch_ids:
+            failures.append(
+                "status_mismatches:" + ",".join(mismatch_ids)
+            )
+
+    return failures
