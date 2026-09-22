@@ -18,6 +18,20 @@ class Settings(BaseSettings):
     max_capture_mb: int = Field(default=12, ge=1, le=50)
     max_capture_pixels: int = Field(default=40_000_000, ge=1_000_000, le=100_000_000)
 
+    quality_sharpness_retake: float = Field(default=60.0, ge=0)
+    quality_sharpness_review: float = Field(default=110.0, ge=0)
+    quality_brightness_retake_low: float = Field(default=40.0, ge=0, le=255)
+    quality_brightness_retake_high: float = Field(default=220.0, ge=0, le=255)
+    quality_brightness_review_low: float = Field(default=60.0, ge=0, le=255)
+    quality_brightness_review_high: float = Field(default=200.0, ge=0, le=255)
+    quality_dark_fraction_retake: float = Field(default=0.60, ge=0, le=1)
+    quality_bright_fraction_retake: float = Field(default=0.60, ge=0, le=1)
+    quality_glare_fraction_retake: float = Field(default=0.08, ge=0, le=1)
+    quality_glare_fraction_review: float = Field(default=0.03, ge=0, le=1)
+    quality_glare_intensity: int = Field(default=245, ge=0, le=255)
+    quality_glare_saturation_max: int = Field(default=40, ge=0, le=255)
+    quality_glare_component_max_fraction: float = Field(default=0.08, gt=0, le=1)
+
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "codeflux-api"
@@ -36,16 +50,31 @@ class Settings(BaseSettings):
 
 def validate_runtime_settings(settings: Settings) -> None:
     environment = settings.app_env.strip().lower()
-    if environment in {"development", "test"}:
-        return
+    if environment not in {"development", "test"}:
+        if (
+            settings.jwt_secret == DEVELOPMENT_JWT_SECRET
+            or len(settings.jwt_secret) < 32
+        ):
+            raise RuntimeError(
+                "JWT_SECRET must be replaced with a strong deployment secret "
+                "outside development/test."
+            )
 
-    if (
-        settings.jwt_secret == DEVELOPMENT_JWT_SECRET
-        or len(settings.jwt_secret) < 32
-    ):
+    if settings.quality_sharpness_review < settings.quality_sharpness_retake:
         raise RuntimeError(
-            "JWT_SECRET must be replaced with a strong deployment secret "
-            "outside development/test."
+            "QUALITY_SHARPNESS_REVIEW must be >= QUALITY_SHARPNESS_RETAKE."
+        )
+    if not (
+        settings.quality_brightness_retake_low
+        <= settings.quality_brightness_review_low
+        < settings.quality_brightness_review_high
+        <= settings.quality_brightness_retake_high
+    ):
+        raise RuntimeError("Quality brightness thresholds are inconsistent.")
+    if settings.quality_glare_fraction_review > settings.quality_glare_fraction_retake:
+        raise RuntimeError(
+            "QUALITY_GLARE_FRACTION_REVIEW must be <= "
+            "QUALITY_GLARE_FRACTION_RETAKE."
         )
 
 
