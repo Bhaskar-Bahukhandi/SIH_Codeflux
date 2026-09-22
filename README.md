@@ -31,13 +31,23 @@ The core workflow is:
 
 ## Current status
 
-**Phase 0 — Foundation and project setup**
+**Phase 1 — Data foundation and access control**
 
-The project is being built from the approved CODEFLUX Foundation Blueprint v1.0 and Development Roadmap v1.0.
+Implemented foundation:
 
-No production feature implementation should begin until the Phase 0 scope, initial rule coverage, demo package categories, calibration approach and officer flow are frozen.
+- versioned database migrations;
+- persisted inspections and user roles;
+- draft/pending-review lifecycle;
+- real JWT authentication with Argon2 password hashing;
+- officer ownership and role access boundaries;
+- append-only inspection audit events;
+- liveness and database-readiness checks.
 
-## Planned technical baseline
+Phase 1 intentionally does **not** claim image capture, OCR, Legal Metrology rule execution, reporting or offline synchronization yet.
+
+The next roadmap phase is the package image-capture and evidence-storage pipeline.
+
+## Technical baseline
 
 - Mobile field app: Flutter
 - Web dashboard: React
