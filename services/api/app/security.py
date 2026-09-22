@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.models.user import User
 
 _password_hasher = PasswordHasher()
+_dummy_password_hash = _password_hasher.hash("codeflux-dummy-password")
 
 
 def hash_password(password: str) -> str:
@@ -24,6 +25,10 @@ def verify_password(password: str, password_hash: str | None) -> bool:
         return _password_hasher.verify(password_hash, password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
+
+def verify_password_or_dummy(password: str, password_hash: str | None) -> bool:
+    return verify_password(password, password_hash or _dummy_password_hash)
 
 
 def create_access_token(user: User, settings: Settings) -> str:
