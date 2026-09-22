@@ -28,6 +28,17 @@ def planar_package_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def review_candidate_bytes() -> bytes:
+    image = Image.new("RGB", (420, 320), (25, 25, 25))
+    draw = ImageDraw.Draw(image)
+    polygon = [(100, 75), (320, 82), (310, 245), (105, 238)]
+    draw.polygon(polygon, fill=(150, 150, 150))
+    draw.line(polygon + [polygon[0]], fill=(245, 245, 245), width=6)
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=96)
+    return buffer.getvalue()
+
+
 def blank_package_bytes() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (320, 240), (120, 120, 120)).save(
@@ -184,6 +195,35 @@ def test_ambiguous_image_falls_back_without_corrected_derivative(
     )
     assert geometry is not None
     assert geometry.corrected_derivative_id is None
+
+
+def test_plausible_but_below_gate_geometry_recommends_review(
+    client,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        review_candidate_bytes(),
+    )
+    preprocess(client, inspection["id"], capture["id"], headers)
+
+    response = analyze(client, inspection["id"], capture["id"], headers)
+
+    assert response.status_code == 200
+    result = response.json()
+    geometry = result["geometry"]
+    assert geometry["status"] == "review_recommended"
+    assert geometry["corners"] is not None
+    assert geometry["geometry_score"] < geometry["thresholds"]["correction_score"]
+    assert geometry["corrected_derivative_id"] is None
+    assert result["corrected_derivative"] is None
+    assert "geometry_below_correction_gate" in geometry["reasons"]
 
 
 def test_geometry_requires_prior_preprocessing(
