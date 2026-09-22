@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -15,6 +25,9 @@ def utcnow() -> datetime:
 
 class OcrRun(Base):
     __tablename__ = "ocr_runs"
+    __table_args__ = (
+        CheckConstraint("block_count >= 0", name="ck_ocr_runs_block_count_nonnegative"),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36),
@@ -50,6 +63,21 @@ class OcrRun(Base):
 
 class OcrBlock(Base):
     __tablename__ = "ocr_blocks"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "order_index",
+            name="uq_ocr_blocks_run_order",
+        ),
+        CheckConstraint(
+            "order_index >= 0",
+            name="ck_ocr_blocks_order_nonnegative",
+        ),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="ck_ocr_blocks_confidence_range",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36),
