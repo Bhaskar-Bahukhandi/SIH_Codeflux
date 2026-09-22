@@ -2,7 +2,7 @@
 
 Technology: Python + FastAPI.
 
-The API contains the completed Phase 1 data/access foundation and the current Phase 2 evidence/preprocessing foundation.
+The API contains the completed data/access foundation, the capture/preprocessing foundation, and the current OCR text-evidence foundation.
 
 ## Current capabilities
 
@@ -20,12 +20,13 @@ The API contains the completed Phase 1 data/access foundation and the current Ph
 - original-evidence integrity verification before processing;
 - EXIF orientation-normalized derivative creation;
 - OpenCV/Pillow image-quality metrics;
-- versioned quality assessments with stored threshold snapshots;
-- protected derivative and latest-quality retrieval;
-- conservative quadrilateral geometry analysis;
-- optional perspective-corrected derivative with normalized-image fallback.
+- versioned quality assessments with threshold snapshots;
+- conservative perspective geometry with normalized fallback;
+- append-only OCR runs with source-derivative provenance;
+- ordered OCR text blocks with recognition score and polygon;
+- protected OCR execution/latest-result access.
 
-OCR, declaration extraction, physical measurement, Legal Metrology rule execution, reports and offline sync are not represented as working yet.
+Declaration extraction, physical measurement, Legal Metrology rule execution, reports and offline sync are not represented as working yet.
 
 ## Local setup
 
@@ -63,38 +64,47 @@ pytest
 
 ## Evidence-storage rule
 
-Original uploaded images are immutable evidence. Preprocessing writes a separate derivative.
+Original uploaded images are immutable evidence. Preprocessing writes separate derivatives.
 
-Before processing, the stored original is re-hashed and compared with the database checksum. An integrity mismatch blocks processing.
+Before OCR, the selected derivative is re-hashed against its stored SHA-256 value. An integrity mismatch blocks OCR.
 
-## Quality-processing endpoints
+## OCR runtime
 
-For an authenticated, officer-owned draft inspection:
+The production OCR adapter uses PaddleOCR 3.x through its `PaddleOCR(...).predict(...)` interface.
 
-- `POST /api/v1/inspections/{inspection_id}/captures/{capture_id}/process`
-- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/quality/latest`
-- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/derivatives/{derivative_id}/content`
+Install the Python adapter extra:
 
-Supervisors/admins may read processed evidence through the existing visibility rules, but processing/mutation remains an officer action.
+```bash
+pip install -e ".[ocr]"
+```
 
-## Quality rule
+PaddleOCR local inference also requires a compatible inference engine/runtime. Install that separately according to the official PaddleOCR/PaddlePaddle instructions for the target machine.
 
-The v1 quality status is capture guidance only. It must never be translated into a compliance violation.
+Default OCR configuration:
+
+- inference engine: `paddle`;
+- language: `en`;
+- model family: `PP-OCRv5`;
+- device: `cpu`;
+- minimum recognition score: `0.0`.
+
+These are engineering/runtime defaults, not Legal Metrology thresholds.
+
+## OCR source selection
+
+OCR uses the latest perspective-corrected derivative only when that correction is based on the latest normalized derivative. Otherwise it falls back to the latest normalized derivative.
+
+A quality status such as `retake_recommended` does not automatically become a legal/compliance failure and does not silently create a missing-declaration result.
+
+## OCR endpoints
+
+For an authenticated officer-owned draft inspection:
+
+- `POST /api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/run`
+- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/latest`
+
+Supervisors/admins may read OCR evidence through the existing inspection visibility model, but OCR execution remains an officer action.
 
 ## Database rule
 
 PostgreSQL remains the production target. SQLite in tests is isolated test infrastructure. Schema changes use Alembic migrations.
-
-
-## Geometry endpoints
-
-After capture preprocessing:
-
-- `POST /api/v1/inspections/{inspection_id}/captures/{capture_id}/geometry/analyze`
-- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/geometry/latest`
-
-Geometry analysis can return `not_detected`, `review_recommended`, or `correction_available`.
-
-Only the last state creates a new `perspective_corrected` derivative. The normalized derivative remains the fallback in every case.
-
-Geometry scores are engineering heuristics, not probabilities or legal conclusions.
