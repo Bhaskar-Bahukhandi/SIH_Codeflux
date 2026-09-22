@@ -57,6 +57,7 @@ evaluation/phase2/manifest.csv
 evaluation/phase3/images/
 evaluation/phase3/ground_truth/
 evaluation/phase3/manifest.csv
+evaluation/phase4/manifest.json
 evaluation/reports/
 
 # Logs
