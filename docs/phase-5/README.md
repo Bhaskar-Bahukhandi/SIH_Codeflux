@@ -58,6 +58,8 @@ Every evaluation run stores:
 - rule-pack ID;
 - rule-pack version;
 - SHA-256 of the exact rule-pack file;
+- parsed rule-pack snapshot stored with the evaluation run;
+- per-rule effective-from/applicability metadata;
 - officer-supplied context snapshot;
 - per-rule result/evidence link.
 
