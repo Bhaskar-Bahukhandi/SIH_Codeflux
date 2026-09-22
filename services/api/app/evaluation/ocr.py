@@ -15,7 +15,7 @@ from app.services.image_quality import (
     normalize_capture,
     quality_thresholds_from_settings,
 )
-from app.services.ocr_engine import OcrEngine
+from app.services.ocr_engine import OcrEngine, OcrInferenceFailed
 from app.services.perspective import (
     GEOMETRY_ALGORITHM_VERSION,
     PERSPECTIVE_PROCESSING_VERSION,
@@ -158,6 +158,26 @@ def _ground_truth(row: OcrManifestRow) -> str | None:
     return row.ground_truth_path.read_text(encoding="utf-8")
 
 
+def _case_base(row: OcrManifestRow, ground_truth: str | None) -> dict:
+    return {
+        "case_id": row.case_id,
+        "dataset_type": row.dataset_type,
+        "image_path": str(row.image_path),
+        "ground_truth_path": (
+            str(row.ground_truth_path)
+            if row.ground_truth_path is not None
+            else None
+        ),
+        "notes": row.notes,
+        "ground_truth_text": ground_truth,
+        "normalized_ground_truth_text": (
+            normalize_metric_text(ground_truth)
+            if ground_truth is not None
+            else None
+        ),
+    }
+
+
 def evaluate_ocr_manifest(
     manifest_path: Path,
     *,
@@ -175,16 +195,40 @@ def evaluate_ocr_manifest(
                 f"Image for case {row.case_id!r} not found: {row.image_path}"
             )
 
-        original = row.image_path.read_bytes()
-        normalized = normalize_capture(original)
-        quality = assess_quality(
-            normalized.data,
-            thresholds=quality_thresholds,
-        )
-        geometry = analyze_perspective(
-            normalized.data,
-            thresholds=geometry_thresholds,
-        )
+        ground_truth = _ground_truth(row)
+        case = _case_base(row, ground_truth)
+
+        try:
+            original = row.image_path.read_bytes()
+            normalized = normalize_capture(original)
+            quality = assess_quality(
+                normalized.data,
+                thresholds=quality_thresholds,
+            )
+            geometry = analyze_perspective(
+                normalized.data,
+                thresholds=geometry_thresholds,
+            )
+        except OSError:
+            case.update(
+                {
+                    "status": "pipeline_error",
+                    "error_code": "image_preparation_failed",
+                    "quality_status": None,
+                    "quality_reasons": [],
+                    "geometry_status": None,
+                    "geometry_reasons": [],
+                    "ocr_source_type": None,
+                    "ocr_source_processing_version": None,
+                    "recognized_text": None,
+                    "normalized_recognized_text": None,
+                    "character_error_rate": None,
+                    "word_error_rate": None,
+                    "blocks": [],
+                }
+            )
+            cases.append(case)
+            continue
 
         if geometry.corrected_jpeg is not None:
             source_bytes = geometry.corrected_jpeg
@@ -195,12 +239,32 @@ def evaluate_ocr_manifest(
             source_type = "normalized"
             source_processing_version = PREPROCESSING_VERSION
 
-        detections = engine.extract(source_bytes)
+        try:
+            detections = engine.extract(source_bytes)
+        except OcrInferenceFailed:
+            case.update(
+                {
+                    "status": "ocr_error",
+                    "error_code": "ocr_inference_failed",
+                    "quality_status": quality.status.value,
+                    "quality_reasons": quality.reasons,
+                    "geometry_status": geometry.status.value,
+                    "geometry_reasons": geometry.reasons,
+                    "ocr_source_type": source_type,
+                    "ocr_source_processing_version": source_processing_version,
+                    "recognized_text": None,
+                    "normalized_recognized_text": None,
+                    "character_error_rate": None,
+                    "word_error_rate": None,
+                    "blocks": [],
+                }
+            )
+            cases.append(case)
+            continue
+
         recognized_text = "\n".join(
             detection.text for detection in detections
         )
-        ground_truth = _ground_truth(row)
-
         cer = (
             round(character_error_rate(ground_truth, recognized_text), 6)
             if ground_truth is not None
@@ -212,17 +276,10 @@ def evaluate_ocr_manifest(
             else None
         )
 
-        cases.append(
+        case.update(
             {
-                "case_id": row.case_id,
-                "dataset_type": row.dataset_type,
-                "image_path": str(row.image_path),
-                "ground_truth_path": (
-                    str(row.ground_truth_path)
-                    if row.ground_truth_path is not None
-                    else None
-                ),
-                "notes": row.notes,
+                "status": "ok",
+                "error_code": None,
                 "quality_status": quality.status.value,
                 "quality_reasons": quality.reasons,
                 "geometry_status": geometry.status.value,
@@ -232,12 +289,6 @@ def evaluate_ocr_manifest(
                 "recognized_text": recognized_text,
                 "normalized_recognized_text": normalize_metric_text(
                     recognized_text
-                ),
-                "ground_truth_text": ground_truth,
-                "normalized_ground_truth_text": (
-                    normalize_metric_text(ground_truth)
-                    if ground_truth is not None
-                    else None
                 ),
                 "character_error_rate": cer,
                 "word_error_rate": wer,
@@ -252,6 +303,7 @@ def evaluate_ocr_manifest(
                 ],
             }
         )
+        cases.append(case)
 
     dataset_counts = {
         dataset_type: sum(
@@ -261,8 +313,10 @@ def evaluate_ocr_manifest(
         )
         for dataset_type in sorted(_ALLOWED_DATASET_TYPES)
     }
+    successful = [case for case in cases if case["status"] == "ok"]
     labeled = [
-        case for case in cases
+        case
+        for case in successful
         if case["ground_truth_text"] is not None
     ]
     real_cases = [
@@ -270,8 +324,14 @@ def evaluate_ocr_manifest(
         if case["dataset_type"] == "real_package"
     ]
     labeled_real = [
-        case for case in real_cases
+        case
+        for case in real_cases
         if case["ground_truth_text"] is not None
+    ]
+    scored_real = [
+        case
+        for case in labeled_real
+        if case["status"] == "ok"
     ]
 
     warnings: list[str] = []
@@ -279,13 +339,23 @@ def evaluate_ocr_manifest(
         warnings.append("no_real_package_cases")
     if not labeled_real:
         warnings.append("no_labeled_real_package_cases")
+    if labeled_real and not scored_real:
+        warnings.append("no_scored_real_package_cases")
+    if any(case["status"] != "ok" for case in cases):
+        warnings.append("one_or_more_cases_failed")
 
     return {
         "manifest": str(manifest_path.expanduser().resolve()),
         "case_count": len(cases),
+        "successful_case_count": len(successful),
+        "failed_case_count": len(cases) - len(successful),
         "dataset_counts": dataset_counts,
-        "labeled_case_count": len(labeled),
+        "labeled_case_count": sum(
+            1 for case in cases if case["ground_truth_text"] is not None
+        ),
+        "scored_case_count": len(labeled),
         "real_package_labeled_count": len(labeled_real),
+        "real_package_scored_count": len(scored_real),
         "metric_normalization": {
             "unicode": "NFC",
             "whitespace": "collapse_runs",
@@ -318,22 +388,22 @@ def evaluate_ocr_manifest(
             round(
                 mean(
                     case["character_error_rate"]
-                    for case in labeled_real
+                    for case in scored_real
                 ),
                 6,
             )
-            if labeled_real
+            if scored_real
             else None
         ),
         "real_package_mean_word_error_rate": (
             round(
                 mean(
                     case["word_error_rate"]
-                    for case in labeled_real
+                    for case in scored_real
                 ),
                 6,
             )
-            if labeled_real
+            if scored_real
             else None
         ),
         "warnings": warnings,
@@ -346,12 +416,14 @@ def ocr_gate_failures(
     *,
     require_real_package: int = 0,
     require_labeled_real: int = 0,
+    require_scored_real: int = 0,
     max_real_cer: float | None = None,
     max_real_wer: float | None = None,
 ) -> list[str]:
     failures: list[str] = []
     real_count = int(report["dataset_counts"]["real_package"])
     labeled_real = int(report["real_package_labeled_count"])
+    scored_real = int(report["real_package_scored_count"])
 
     if real_count < require_real_package:
         failures.append(
@@ -360,6 +432,10 @@ def ocr_gate_failures(
     if labeled_real < require_labeled_real:
         failures.append(
             f"labeled_real_package_count:{labeled_real}<{require_labeled_real}"
+        )
+    if scored_real < require_scored_real:
+        failures.append(
+            f"scored_real_package_count:{scored_real}<{require_scored_real}"
         )
 
     real_cer = report["real_package_mean_character_error_rate"]
