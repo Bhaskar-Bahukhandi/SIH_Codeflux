@@ -2,7 +2,7 @@
 
 Technology: Python + FastAPI.
 
-The API contains the completed data/access foundation, the capture/preprocessing foundation, and the current OCR text-evidence foundation.
+The API contains the data/access, capture/preprocessing, OCR text-evidence, and initial declaration-extraction foundations.
 
 ## Current capabilities
 
@@ -14,19 +14,16 @@ The API contains the completed data/access foundation, the capture/preprocessing
 - supervisor/admin read access;
 - append-only inspection audit events;
 - authenticated package-image upload;
-- decoded JPEG/PNG/WebP verification;
-- original-image SHA-256 and metadata;
-- protected original evidence retrieval;
-- original-evidence integrity verification before processing;
-- EXIF orientation-normalized derivative creation;
-- OpenCV/Pillow image-quality metrics;
-- versioned quality assessments with threshold snapshots;
-- conservative perspective geometry with normalized fallback;
+- immutable original-image SHA-256 provenance;
+- normalized and perspective-corrected derivatives with fallback;
+- versioned image-quality and geometry assessments;
 - append-only OCR runs with source-derivative provenance;
 - ordered OCR text blocks with recognition score and polygon;
-- protected OCR execution/latest-result access.
+- deterministic MRP and net-quantity candidate extraction;
+- OCR-block provenance for each extracted observation;
+- inspection-level multi-image fusion with explicit conflict preservation.
 
-Declaration extraction, physical measurement, Legal Metrology rule execution, reports and offline sync are not represented as working yet.
+Physical measurement, Legal Metrology applicability/rule execution, officer finding approval, reports and offline sync are not represented as working yet.
 
 ## Local setup
 
@@ -62,15 +59,9 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-## Evidence-storage rule
-
-Original uploaded images are immutable evidence. Preprocessing writes separate derivatives.
-
-Before OCR, the selected derivative is re-hashed against its stored SHA-256 value. An integrity mismatch blocks OCR.
-
 ## OCR runtime
 
-The production OCR adapter uses PaddleOCR 3.x through its `PaddleOCR(...).predict(...)` interface.
+The production OCR adapter uses PaddleOCR 3.x behind a pluggable OCR interface.
 
 Install the Python adapter extra:
 
@@ -78,32 +69,46 @@ Install the Python adapter extra:
 pip install -e ".[ocr]"
 ```
 
-PaddleOCR local inference also requires a compatible inference engine/runtime. Install that separately according to the official PaddleOCR/PaddlePaddle instructions for the target machine.
+A compatible inference engine/runtime is still required on the target machine.
 
-Default OCR configuration:
+OCR output is evidence only. Recognition score is not a calibrated legal confidence value.
 
-- inference engine: `paddle`;
-- language: `en`;
-- model family: `PP-OCRv5`;
-- device: `cpu`;
-- minimum recognition score: `0.0`.
-
-These are engineering/runtime defaults, not Legal Metrology thresholds.
-
-## OCR source selection
-
-OCR uses the latest perspective-corrected derivative only when that correction is based on the latest normalized derivative. Otherwise it falls back to the latest normalized derivative.
-
-A quality status such as `retake_recommended` does not automatically become a legal/compliance failure and does not silently create a missing-declaration result.
-
-## OCR endpoints
+## Declaration extraction endpoints
 
 For an authenticated officer-owned draft inspection:
 
-- `POST /api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/run`
-- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/latest`
+- `POST /api/v1/inspections/{inspection_id}/declarations/extract`
+- `GET /api/v1/inspections/{inspection_id}/declarations/latest`
 
-Supervisors/admins may read OCR evidence through the existing inspection visibility model, but OCR execution remains an officer action.
+The first extractor supports:
+
+- MRP / retail sale price candidates;
+- net quantity candidates.
+
+Each observation retains capture, OCR-run and OCR-block provenance plus raw text, normalized value, and the underlying OCR recognition scores.
+
+## Fusion states
+
+- `not_detected`
+- `single_source`
+- `consistent`
+- `conflict`
+
+`consistent` requires the same normalized value on at least two distinct captures.
+
+A conflict is never resolved by silently choosing one value.
+
+## Current-source protection
+
+Extraction uses a capture's latest OCR run only when that OCR run still points to the current OCR source derivative.
+
+If preprocessing changed after OCR, that OCR evidence is recorded as `stale_ocr` and excluded until OCR is rerun.
+
+## Legal boundary
+
+`not_detected` is a technical extraction state only. It does not mean the declaration is legally required, physically absent, or non-compliant.
+
+The current extraction layer contains no Legal Metrology applicability decision or violation logic.
 
 ## Database rule
 

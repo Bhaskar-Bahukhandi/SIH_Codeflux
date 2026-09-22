@@ -1,5 +1,13 @@
 from app.models.audit import AuditEvent, AuditEventType
 from app.models.capture import Capture, CaptureViewType
+from app.models.declaration import (
+    DeclarationExtractionRun,
+    DeclarationFusionStatus,
+    DeclarationObservation,
+    DeclarationObservationBlock,
+    DeclarationSummary,
+    DeclarationType,
+)
 from app.models.geometry import CaptureGeometryAssessment, GeometryStatus
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.ocr import OcrBlock, OcrRun
@@ -19,6 +27,12 @@ __all__ = [
     "CaptureQualityAssessment",
     "CaptureQualityStatus",
     "CaptureViewType",
+    "DeclarationExtractionRun",
+    "DeclarationFusionStatus",
+    "DeclarationObservation",
+    "DeclarationObservationBlock",
+    "DeclarationSummary",
+    "DeclarationType",
     "GeometryStatus",
     "Inspection",
     "InspectionStatus",
