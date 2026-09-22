@@ -73,6 +73,8 @@ If the package is outside this narrow profile, the engine returns `not_evaluated
 
 ## Rule 6(1)(c) — net quantity
 
+Rule-pack effective-from metadata: **1 April 2011**. The principal Packaged Commodities Rules were notified as G.S.R. 202(E) on 7 March 2011 and state that they come into force on 1 April 2011.
+
 ### Verified legal basis
 
 For the supported retail profile, Rule 6(1)(c) requires a net-quantity declaration in the applicable standard unit / number form.
@@ -98,6 +100,8 @@ It does **not** yet verify:
 A technical `not_detected` result is not treated as proof that the declaration is absent.
 
 ## Rule 6(1)(e) — retail sale price / MRP
+
+Rule-pack effective-from metadata for the **current “in Indian currency” wording**: **1 October 2022**. G.S.R. 779(E) introduced that wording and the consolidated official text records its commencement as deferred to 1 October 2022 by G.S.R. 226(E).
 
 ### Verified legal basis
 
