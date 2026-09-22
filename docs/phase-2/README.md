@@ -4,43 +4,62 @@ Status: In progress
 
 ## Goal
 
-Accept real package images as inspection evidence while preserving the original bytes and keeping access tied to the inspection authorization model.
+Accept real package images as inspection evidence, preserve original bytes, assess capture quality, and prepare safe derivatives for later OCR.
 
-## First slice — original evidence ingestion
+## Slice A — original evidence ingestion
 
-This slice implements:
+Implemented:
 
 - authenticated image upload to an officer-owned draft inspection;
 - multiple capture view types;
 - JPEG/PNG/WebP verification using decoded image content;
-- generated storage keys rather than user-controlled filesystem paths;
+- generated storage keys;
 - SHA-256 checksum;
 - width/height, MIME type and size metadata;
-- protected capture listing;
-- protected byte-for-byte original retrieval;
-- capture-upload audit event;
-- local filesystem storage adapter behind a replaceable dependency.
+- protected capture listing/retrieval;
+- upload audit event;
+- replaceable local filesystem storage adapter.
+
+## Slice B — image quality and preprocessing foundation
+
+Implemented in the current branch:
+
+- original-evidence SHA-256 integrity check before processing;
+- EXIF orientation normalization;
+- separate normalized JPEG derivative;
+- derivative checksum, metadata and processing version;
+- OpenCV/Pillow sharpness, brightness/exposure and glare heuristics;
+- configurable thresholds;
+- `pass`, `review_recommended`, `retake_recommended`;
+- append-only quality-assessment history;
+- protected derivative/quality access;
+- processing audit event.
+
+See `docs/phase-2/image-quality.md`.
+
+## Evidence rule
+
+The original uploaded image is immutable evidence.
+
+Any preprocessing, OCR preparation or later enhancement must create a derivative. Original bytes/checksum must never be silently replaced.
+
+## Important boundary
+
+Image-quality results are engineering guidance for capture usability. They are **not** Legal Metrology findings.
+
+A poor image means retake/review; it does not mean the package is non-compliant.
 
 ## Explicitly not implemented yet
 
-- blur/glare/exposure scoring;
-- orientation/perspective correction;
-- label-region detection;
+- validated perspective correction;
+- label/region detection;
 - OCR;
 - declaration extraction;
 - font-size measurement;
 - compliance decisions.
 
-Those belong to later Phase 2/3 slices.
+## Next Phase 2 work
 
-## Evidence rule
-
-The original uploaded image is immutable evidence. Any later preprocessing must create a derivative and must not overwrite the original storage object or checksum.
-
-## Storage rule
-
-Local filesystem storage is the development/prototype baseline. The API uses generated storage keys and a storage dependency so an object-storage adapter can be introduced later without changing inspection/capture semantics.
-
-## Exit condition for this slice
-
-A real supported image can be uploaded, stored, listed and retrieved securely, and its retrieved bytes match the submitted bytes and stored SHA-256 checksum. Invalid, unsupported, oversized or unauthorized uploads must fail explicitly.
+1. validate quality thresholds on a small real package-image set;
+2. add safe perspective/geometry detection only if confidence/failure gates are defensible;
+3. then move to the OCR phase with original/derivative provenance intact.
