@@ -1,6 +1,6 @@
 # Phase 4 — Declaration Extraction and Multi-image Fusion
 
-Status: In progress
+Status: Initial extraction/fusion implemented; real-package validation pending
 
 ## Goal
 
@@ -67,6 +67,23 @@ It does **not** mean:
 - the package is non-compliant.
 
 Legal applicability and compliance remain later, source-gated rule-engine work.
+
+## Validation harness
+
+A separate Phase 4 evaluation harness now measures deterministic extraction given OCR blocks.
+
+It records:
+
+- exact structured expected/predicted values;
+- false positives and false negatives;
+- precision / recall / F1 by supported declaration type;
+- exact case match;
+- whether blocks came from actual OCR, human transcription, or synthetic fixtures;
+- real-package actual-OCR metrics separately from synthetic regression data.
+
+See `evaluation/phase4/README.md`.
+
+Real-package extraction performance remains **pending** until actual OCR outputs from reviewed package images are annotated and evaluated.
 
 ## Not included yet
 
