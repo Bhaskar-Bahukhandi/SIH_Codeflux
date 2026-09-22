@@ -42,6 +42,10 @@ def upgrade() -> None:
             name="fk_ocr_runs_source_derivative_id_derivatives",
             ondelete="RESTRICT",
         ),
+        sa.CheckConstraint(
+            "block_count >= 0",
+            name="ck_ocr_runs_block_count_nonnegative",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_ocr_runs_capture_id", "ocr_runs", ["capture_id"], unique=False)
@@ -67,7 +71,20 @@ def upgrade() -> None:
             name="fk_ocr_blocks_run_id_ocr_runs",
             ondelete="RESTRICT",
         ),
+        sa.CheckConstraint(
+            "order_index >= 0",
+            name="ck_ocr_blocks_order_nonnegative",
+        ),
+        sa.CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="ck_ocr_blocks_confidence_range",
+        ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "run_id",
+            "order_index",
+            name="uq_ocr_blocks_run_order",
+        ),
     )
     op.create_index("ix_ocr_blocks_run_id", "ocr_blocks", ["run_id"], unique=False)
 
