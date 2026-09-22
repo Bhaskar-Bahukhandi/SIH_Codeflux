@@ -41,7 +41,8 @@ The harness compares exact normalized declaration values and reports:
 - F1;
 - exact case match;
 - per-declaration-type metrics;
-- real-package actual-OCR exact-match rate.
+- real-package actual-OCR exact-match rate;
+- real-package actual-OCR precision/recall.
 
 When a denominator does not exist, a metric is `null` rather than an invented perfect score.
 
@@ -63,6 +64,8 @@ python -m app.cli.validate_declarations \
   --output ../../evaluation/reports/phase4-declarations.json \
   --require-real-actual-ocr 20 \
   --min-real-exact-match-rate 0.80 \
+  --min-real-precision 0.90 \
+  --min-real-recall 0.85 \
   --min-overall-precision 0.90 \
   --min-overall-recall 0.85
 ```
