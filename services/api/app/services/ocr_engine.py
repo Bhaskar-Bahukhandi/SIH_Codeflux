@@ -11,6 +11,7 @@ from fastapi import Depends
 from PIL import Image
 
 from app.core.config import Settings, get_settings
+from app.errors import service_unavailable
 
 
 class OcrBackendUnavailable(RuntimeError):
@@ -173,10 +174,16 @@ def _cached_paddle_engine(
 def get_ocr_engine(
     settings: Settings = Depends(get_settings),
 ) -> OcrEngine:
-    return _cached_paddle_engine(
-        settings.ocr_inference_engine,
-        settings.ocr_language,
-        settings.ocr_model_version,
-        settings.ocr_device,
-        settings.ocr_min_confidence,
-    )
+    try:
+        return _cached_paddle_engine(
+            settings.ocr_inference_engine,
+            settings.ocr_language,
+            settings.ocr_model_version,
+            settings.ocr_device,
+            settings.ocr_min_confidence,
+        )
+    except OcrBackendUnavailable:
+        raise service_unavailable(
+            "ocr_backend_unavailable",
+            "OCR runtime is not available on this server.",
+        )
