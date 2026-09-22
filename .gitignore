@@ -51,6 +51,11 @@ uploads/
 generated_reports/
 tmp/
 
+# Local evaluation data and generated reports
+evaluation/phase2/images/
+evaluation/reports/
+evaluation/phase2/manifest.csv
+
 # Logs
 *.log
 logs/
