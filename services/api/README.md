@@ -11,6 +11,7 @@ Implemented in this branch:
 - application factory;
 - `GET /health`;
 - SQLAlchemy database foundation;
+- Alembic migration baseline;
 - inspection model with UUID identifier, draft/finalized status and timestamps;
 - create/list/get inspection endpoints;
 - persistence tests using an isolated in-memory SQLite database.
@@ -29,10 +30,10 @@ pip install -e ".[dev]"
 
 Create a local `.env` from the repository `.env.example` and configure `DATABASE_URL`.
 
-Initialize the current development schema:
+Apply the database schema:
 
 ```bash
-python -m app.db_init
+alembic upgrade head
 ```
 
 Run the API:
@@ -47,8 +48,8 @@ Run tests:
 pytest
 ```
 
-## Important limitation
+## Database rule
 
-`db_init` uses SQLAlchemy metadata creation only as an early Phase 1 bootstrap. A proper migration baseline must replace this before the schema is treated as stable.
+PostgreSQL remains the production target. SQLite in the tests is an isolated test dependency and does not change that architecture decision.
 
-The production target remains PostgreSQL. SQLite in the tests is an isolated test dependency and does not change that architecture decision.
+Schema changes must be represented by Alembic migrations rather than relying on runtime `create_all` behavior.
