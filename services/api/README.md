@@ -2,21 +2,23 @@
 
 Technology: Python + FastAPI.
 
-This service is the central API foundation for persisted inspection data. It is intentionally small in the first Phase 1 slice.
+This service is the central API foundation for persisted inspection data.
 
-## Current Phase 1 slice
-
-Implemented in this branch:
+## Current Phase 1 capabilities
 
 - application factory;
 - `GET /health`;
 - SQLAlchemy database foundation;
-- Alembic migration baseline;
-- inspection model with UUID identifier, draft/finalized status and timestamps;
+- Alembic migrations;
+- inspection persistence;
 - create/list/get inspection endpoints;
-- persistence tests using an isolated in-memory SQLite database.
+- draft inspection editing;
+- draft -> pending-review submission;
+- user/role persistence foundation;
+- stable domain error shape for 404/409 cases;
+- isolated API/persistence tests.
 
-No OCR, compliance rule, authentication, report or sync behavior is implemented here yet.
+No OCR, Legal Metrology rule, report, authentication, or sync behavior is represented as working yet.
 
 ## Local setup
 
@@ -30,7 +32,7 @@ pip install -e ".[dev]"
 
 Create a local `.env` from the repository `.env.example` and configure `DATABASE_URL`.
 
-Apply the database schema:
+Apply migrations:
 
 ```bash
 alembic upgrade head
@@ -50,6 +52,12 @@ pytest
 
 ## Database rule
 
-PostgreSQL remains the production target. SQLite in the tests is an isolated test dependency and does not change that architecture decision.
+PostgreSQL remains the production target. SQLite in tests is an isolated test dependency.
 
-Schema changes must be represented by Alembic migrations rather than relying on runtime `create_all` behavior.
+Schema changes must use Alembic migrations. Runtime code must not silently recreate or mutate the production schema.
+
+## Lifecycle rule
+
+The API currently supports `draft -> pending_review`.
+
+There is deliberately no finalize endpoint yet. Finalization will be introduced only when the officer-review/report phase has the data required to make finalization meaningful.

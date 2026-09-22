@@ -4,42 +4,52 @@ Status: In progress
 
 ## Goal
 
-Create the first executable foundation for inspections without introducing OCR, compliance judgments, or UI behavior prematurely.
+Build the executable data and API foundation for inspections without pulling OCR, Legal Metrology rule evaluation, reporting, or mobile capture forward prematurely.
 
-## First vertical slice
+## Completed slice A — inspection persistence
 
-The initial backend slice must prove that:
+- FastAPI application foundation;
+- health endpoint;
+- SQLAlchemy persistence;
+- Alembic migration baseline;
+- create/list/get inspection endpoints;
+- isolated persistence tests.
 
-1. the API starts;
-2. health status is available;
-3. an inspection draft can be created from real request data;
-4. the record receives a stable identifier and timestamps;
-5. the draft can be retrieved again;
-6. multiple saved records can be listed;
-7. a missing record fails explicitly with 404;
-8. automated tests exercise those behaviors with isolated persistence.
+## Current slice B — lifecycle and user-role foundation
 
-## Not implemented in this slice
+This slice adds:
 
-- authentication;
-- officer/supervisor authorization;
-- package images;
-- OCR;
-- declarations;
-- rule evaluation;
-- reports;
+- persisted Officer / Supervisor / Admin role model;
+- optional officer ownership field on inspections;
+- explicit draft -> pending-review lifecycle transition;
+- safe draft editing;
+- machine-readable domain 404/409 errors;
+- migration revision 0002;
+- tests for lifecycle safety and role persistence.
+
+### Important boundary
+
+The user model is a data foundation only. There is no password/login flow and no unauthenticated user-management API in this slice.
+
+The inspection API does not expose a finalize action yet. Finalization is intentionally deferred until the officer-review/report phase can support it honestly.
+
+## Still not implemented
+
+- authentication and authorization;
+- package images/captures;
+- OCR and declaration extraction;
+- Legal Metrology rule execution;
+- officer finding review;
+- PDF report generation;
 - offline mobile synchronization.
 
-These remain later Phase 1/roadmap tasks and must not be simulated with placeholder success responses.
+## Next Phase 1 work
 
-## Next Phase 1 steps
-
-1. add proper schema migrations;
-2. extend the core data model toward user/role and inspection lifecycle;
-3. define API error conventions;
-4. add configuration validation and startup checks;
-5. create the mobile local-draft model only after backend identifiers/state are stable enough to mirror safely.
+1. configuration/startup validation and database readiness;
+2. authentication skeleton tied to the persisted user/role model;
+3. inspection audit-event foundation for state-changing actions;
+4. then close Phase 1 before starting image capture work.
 
 ## Validation gate
 
-Do not merge this slice based only on code review. Run the API tests in a real Python environment or working CI runner and record the result in the pull request.
+Each merged slice needs executed tests or equivalent evidence. Do not call a phase complete from static code review alone.
