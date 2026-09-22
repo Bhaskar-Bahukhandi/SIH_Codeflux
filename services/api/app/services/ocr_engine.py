@@ -131,8 +131,17 @@ class PaddleOcrEngine:
                 if not text:
                     continue
 
+                confidence = float(scores[index])
+                if not np.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+                    raise OcrInferenceFailed(
+                        "PaddleOCR returned an invalid recognition score."
+                    )
+
                 polygon_array = np.asarray(polygons[index], dtype=float)
-                if polygon_array.shape != (4, 2):
+                if (
+                    polygon_array.shape != (4, 2)
+                    or not np.isfinite(polygon_array).all()
+                ):
                     raise OcrInferenceFailed(
                         "PaddleOCR returned an invalid text polygon."
                     )
@@ -140,7 +149,7 @@ class PaddleOcrEngine:
                 detections.append(
                     OcrDetection(
                         text=text,
-                        confidence=float(scores[index]),
+                        confidence=confidence,
                         polygon=[
                             [
                                 round(float(point[0]), 3),
