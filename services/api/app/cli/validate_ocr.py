@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--require-real-package", type=int, default=0)
     parser.add_argument("--require-labeled-real", type=int, default=0)
+    parser.add_argument("--require-scored-real", type=int, default=0)
     parser.add_argument("--max-real-cer", type=float, default=None)
     parser.add_argument("--max-real-wer", type=float, default=None)
     return parser.parse_args()
@@ -43,12 +44,14 @@ def main() -> None:
         report,
         require_real_package=args.require_real_package,
         require_labeled_real=args.require_labeled_real,
+        require_scored_real=args.require_scored_real,
         max_real_cer=args.max_real_cer,
         max_real_wer=args.max_real_wer,
     )
     report["requested_gates"] = {
         "require_real_package": args.require_real_package,
         "require_labeled_real": args.require_labeled_real,
+        "require_scored_real": args.require_scored_real,
         "max_real_cer": args.max_real_cer,
         "max_real_wer": args.max_real_wer,
     }
@@ -67,6 +70,8 @@ def main() -> None:
         f"{report['case_count']} cases; "
         f"{report['dataset_counts']['real_package']} real_package; "
         f"{report['real_package_labeled_count']} labeled real; "
+        f"{report['real_package_scored_count']} scored real; "
+        f"{report['failed_case_count']} failed; "
         f"report={output}"
     )
 
