@@ -43,6 +43,7 @@ Implemented foundation now includes:
 - deterministic MRP and net-quantity candidate extraction;
 - exact OCR-block provenance for structured observations;
 - multi-image fusion with `not_detected`, `single_source`, `consistent`, and `conflict` states;
+- reproducible declaration-extraction evaluation with exact-value precision/recall/F1;
 - stale-OCR protection when a capture has been reprocessed.
 
 The project still does **not** claim broad declaration coverage, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.

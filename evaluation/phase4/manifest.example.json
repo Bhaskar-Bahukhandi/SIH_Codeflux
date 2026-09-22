@@ -1,0 +1,52 @@
+{
+  "cases": [
+    {
+      "case_id": "real-ocr-001",
+      "dataset_type": "real_package",
+      "block_source": "actual_ocr",
+      "ocr_blocks": [
+        {
+          "block_id": "b0",
+          "text": "MRP: Rs. 50.00",
+          "confidence": 0.93
+        },
+        {
+          "block_id": "b1",
+          "text": "Net Qty 100 g",
+          "confidence": 0.89
+        }
+      ],
+      "expected_declarations": [
+        {
+          "declaration_type": "mrp",
+          "normalized_value": {
+            "currency": "INR",
+            "amount": "50.00"
+          }
+        },
+        {
+          "declaration_type": "net_quantity",
+          "normalized_value": {
+            "value": "100",
+            "unit": "g"
+          }
+        }
+      ],
+      "notes": "Replace with an actual reviewed OCR case before making real-package claims."
+    },
+    {
+      "case_id": "synthetic-001",
+      "dataset_type": "synthetic",
+      "block_source": "synthetic",
+      "ocr_blocks": [
+        {
+          "block_id": "b0",
+          "text": "No supported declaration here",
+          "confidence": 0.99
+        }
+      ],
+      "expected_declarations": [],
+      "notes": "Regression-only negative case."
+    }
+  ]
+}

@@ -6,7 +6,7 @@ Current evaluation areas include:
 
 - Phase 2 image-quality / geometry validation;
 - Phase 3 OCR text-fidelity validation;
-- declaration-extraction ground truth;
+- Phase 4 declaration-extraction ground truth;
 - rule-level compliant / potential-issue / uncertain cases;
 - officer-correction traceability;
 - report consistency checks;
@@ -22,3 +22,4 @@ Synthetic data is useful for deterministic regression tests, but it must not be 
 
 - Phase 2: see `evaluation/phase2/README.md`.
 - Phase 3 OCR: see `evaluation/phase3/README.md`.
+- Phase 4 declaration extraction: see `evaluation/phase4/README.md`.
