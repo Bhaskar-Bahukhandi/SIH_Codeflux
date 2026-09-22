@@ -18,6 +18,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--require-real-actual-ocr", type=int, default=0)
     parser.add_argument("--min-real-exact-match-rate", type=float, default=None)
+    parser.add_argument("--min-real-precision", type=float, default=None)
+    parser.add_argument("--min-real-recall", type=float, default=None)
     parser.add_argument("--min-overall-precision", type=float, default=None)
     parser.add_argument("--min-overall-recall", type=float, default=None)
     return parser.parse_args()
@@ -30,12 +32,16 @@ def main() -> None:
         report,
         require_real_actual_ocr=args.require_real_actual_ocr,
         min_real_exact_match_rate=args.min_real_exact_match_rate,
+        min_real_precision=args.min_real_precision,
+        min_real_recall=args.min_real_recall,
         min_overall_precision=args.min_overall_precision,
         min_overall_recall=args.min_overall_recall,
     )
     report["requested_gates"] = {
         "require_real_actual_ocr": args.require_real_actual_ocr,
         "min_real_exact_match_rate": args.min_real_exact_match_rate,
+        "min_real_precision": args.min_real_precision,
+        "min_real_recall": args.min_real_recall,
         "min_overall_precision": args.min_overall_precision,
         "min_overall_recall": args.min_overall_recall,
     }
