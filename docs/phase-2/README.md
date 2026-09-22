@@ -1,6 +1,6 @@
 # Phase 2 — Capture and Evidence Storage
 
-Status: In progress
+Status: Implementation complete; real-package validation pending
 
 ## Goal
 
@@ -52,6 +52,21 @@ Implemented:
 
 See `docs/phase-2/perspective-geometry.md`.
 
+## Slice D — reproducible validation harness
+
+Implemented:
+
+- manifest-driven evaluation runner;
+- explicit separation of `real_package`, `synthetic` and `other` cases;
+- per-image quality/geometry outputs;
+- algorithm-version and threshold snapshots in the report;
+- optional human-reviewed expected states;
+- status agreement metrics only where labels exist;
+- warnings when real-package/labeled-real evidence is missing;
+- configurable CLI gates for a team-selected validation run.
+
+See `evaluation/phase2/README.md`.
+
 ## Evidence rule
 
 The original uploaded image is immutable evidence.
@@ -64,6 +79,8 @@ Image-quality and geometry results are engineering guidance. They are **not** Le
 
 A curved/flexible package may remain uncorrected. OCR must retain the normalized derivative as a fallback.
 
+Synthetic fixtures prove regression behavior only. Phase 2 thresholds remain provisional until a real-package image set is actually evaluated and reviewed.
+
 ## Explicitly not implemented yet
 
 - OCR;
@@ -72,8 +89,10 @@ A curved/flexible package may remain uncorrected. OCR must retain the normalized
 - font-size/physical measurement;
 - compliance decisions.
 
-## Next Phase 2 work
+## Phase 2 exit condition
 
-1. validate quality/geometry behavior on a small real package-image set;
-2. keep unsupported/ambiguous geometry on the normalized fallback;
-3. then enter the OCR phase with complete source/derivative provenance.
+Implementation can be merged when automated regression tests pass.
+
+Field-validation closure still requires a real-package dataset run using the validation harness. Until that evidence exists, documentation must say **real-package validation pending** rather than claim the capture-quality/geometry thresholds are field-validated.
+
+The OCR phase may begin using normalized/perspective derivatives with provenance, but it must not depend on unproven quality thresholds as a hard legal/compliance gate.
