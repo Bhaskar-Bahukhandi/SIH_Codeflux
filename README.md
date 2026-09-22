@@ -31,9 +31,9 @@ The core workflow is:
 
 ## Current status
 
-**Phase 3 — OCR text-evidence foundation**
+**Phase 3 — OCR text-evidence and evaluation foundation**
 
-Completed foundation now includes:
+Implemented foundation now includes:
 
 - persisted/authenticated inspection workflow;
 - immutable package-image evidence;
@@ -41,12 +41,14 @@ Completed foundation now includes:
 - normalized and perspective-corrected derivatives with explicit fallback;
 - versioned image-quality and geometry assessments;
 - reproducible Phase 2 validation harness;
-- append-only OCR runs;
-- OCR source-derivative/checksum provenance;
-- ordered recognized text blocks with engine score and polygon;
-- PaddleOCR 3.x runtime adapter behind a testable OCR interface.
+- append-only OCR runs with source provenance;
+- ordered OCR blocks with recognition score and polygon;
+- PaddleOCR runtime adapter behind a testable OCR interface;
+- reproducible OCR evaluation harness with CER/WER and real/synthetic evidence separation.
 
 The project still does **not** claim declaration extraction, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.
+
+Real-package image-quality/geometry and OCR validation remain evidence gates. Synthetic tests are regression evidence only.
 
 OCR output is evidence only. Recognition score is an OCR-engine score, not a calibrated legal confidence value, and OCR failure does not by itself prove a mandatory declaration is absent.
 

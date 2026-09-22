@@ -53,8 +53,11 @@ tmp/
 
 # Local evaluation data and generated reports
 evaluation/phase2/images/
-evaluation/reports/
 evaluation/phase2/manifest.csv
+evaluation/phase3/images/
+evaluation/phase3/ground_truth/
+evaluation/phase3/manifest.csv
+evaluation/reports/
 
 # Logs
 *.log

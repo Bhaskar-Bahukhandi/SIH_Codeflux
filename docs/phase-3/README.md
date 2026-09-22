@@ -1,17 +1,17 @@
 # Phase 3 — OCR Text Evidence
 
-Status: In progress
+Status: OCR foundation implemented; real-package OCR validation pending
 
 ## Goal
 
 Convert prepared package images into traceable text evidence while keeping OCR separate from declaration extraction and legal compliance logic.
 
-## First slice — OCR provenance and persistence
+## Slice A — OCR provenance and persistence
 
-This slice adds:
+Implemented:
 
-- a pluggable OCR-engine interface;
-- a PaddleOCR 3.x adapter;
+- pluggable OCR-engine interface;
+- PaddleOCR 3.x adapter;
 - explicit source-derivative selection;
 - source derivative/checksum provenance;
 - append-only OCR runs;
@@ -29,31 +29,51 @@ OCR uses:
 
 This prevents an older perspective correction from silently overriding newer preprocessing.
 
+## Slice B — OCR evaluation harness
+
+Implemented:
+
+- manifest-driven OCR dataset;
+- explicit `real_package`, `synthetic`, `other` separation;
+- human ground-truth text files;
+- the application normalization/perspective preparation chain;
+- CER and WER;
+- per-case OCR blocks and selected source type;
+- engine/model/version/parameter provenance;
+- labeled/scored/failed case counts;
+- JSON reports;
+- optional evidence gates without hard-coded acceptance thresholds.
+
+See `evaluation/phase3/README.md`.
+
 ## Important boundaries
 
 OCR output is evidence, not a Legal Metrology verdict.
 
 - Recognition score is the OCR engine's score, not a calibrated legal probability.
 - Empty/failed OCR does not prove a declaration is absent.
-- No declaration normalization or field extraction occurs in this slice.
-- No rule engine or compliance finding occurs in this slice.
+- Image-quality status is guidance, not a hard legal gate.
+- No declaration normalization or field extraction occurs in this phase.
+- No rule engine or compliance finding occurs in this phase.
 
 ## PaddleOCR runtime
 
-The adapter targets the current PaddleOCR 3.x `PaddleOCR(...).predict(...)` pipeline and reads the documented `rec_texts`, `rec_scores` and `rec_polys` fields.
+The adapter targets PaddleOCR 3.x `PaddleOCR(...).predict(...)` and reads recognition text, score and polygon output.
 
-The Python package is optional because local inference also depends on a compatible inference engine/runtime. Missing support returns an explicit OCR-backend-unavailable error instead of an empty result.
+The Python package is optional because local inference also depends on a compatible inference engine/runtime. Missing support returns an explicit backend-unavailable error instead of an empty result.
 
-Official references:
+## Phase 3 validation state
 
-- https://www.paddleocr.ai/main/en/quick_start.html
-- https://www.paddleocr.ai/main/en/version3.x/pipeline_usage/OCR.html
-- https://www.paddleocr.ai/main/en/version3.x/installation.html
+The orchestration, persistence and metric paths can be regression-tested without model downloads.
+
+However, **real-package OCR validation is still pending** until representative package photographs are collected, human-transcribed, and run through the configured OCR runtime.
+
+Until then:
+
+- do not claim a CER/WER value for field performance;
+- do not tune declaration logic around synthetic-only behavior;
+- do not treat zero OCR blocks as proof that text is absent.
 
 ## Next work
 
-After this foundation is validated:
-
-1. run real OCR against representative package photographs;
-2. add OCR evaluation metrics/ground truth;
-3. only then begin declaration extraction and multi-image fusion.
+Once this slice is merged, the next implementation step can prepare declaration extraction/multi-image fusion architecture, but production-quality claims must continue to remain gated on real package OCR evidence.
