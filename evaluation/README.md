@@ -1,10 +1,10 @@
 # Evaluation
 
-Evaluation grows with each implementation phase.
+Evaluation grows with each implementation phase and must distinguish synthetic regression evidence from real-world validation.
 
-Planned evidence includes:
+Current evaluation areas include:
 
-- image-quality test cases;
+- Phase 2 image-quality / geometry validation;
 - OCR samples with expected text;
 - declaration-extraction ground truth;
 - rule-level compliant / potential-issue / uncertain cases;
@@ -14,4 +14,10 @@ Planned evidence includes:
 - authorization tests;
 - regression tests.
 
-A module is not considered complete only because its UI appears to work.
+## Evidence rule
+
+A module is not considered validated only because its unit tests pass or its UI appears to work.
+
+Synthetic data is useful for deterministic regression tests, but it must not be presented as proof of field performance.
+
+For Phase 2, see `evaluation/phase2/README.md`.
