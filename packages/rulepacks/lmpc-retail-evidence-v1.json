@@ -52,17 +52,20 @@
     {
       "rule_id": "LMPC-R6-1-C-NET-QUANTITY-EVIDENCE",
       "provision": "Rule 6(1)(c)",
+      "effective_from": "2011-04-01",
       "declaration_type": "net_quantity",
       "check_type": "declaration_evidence_presence",
       "source_ids": [
         "doca-consolidated-lmpc",
         "doca-advisory-2023-01-18"
       ],
+      "applicability_note": "This implementation is restricted to the rule pack's narrow officer-confirmed retail profile and does not attempt every statutory exception or commodity-specific requirement.",
       "summary": "For the supported retail-package profile, net quantity is a required package declaration. This automated check only evaluates whether current structured evidence was detected and is internally consistent."
     },
     {
       "rule_id": "LMPC-R6-1-E-MRP-EVIDENCE",
       "provision": "Rule 6(1)(e)",
+      "effective_from": "2022-10-01",
       "declaration_type": "mrp",
       "check_type": "declaration_evidence_presence",
       "source_ids": [
@@ -71,6 +74,7 @@
         "gsr-226e-2022",
         "doca-advisory-2023-01-18"
       ],
+      "applicability_note": "The effective date refers to the current Rule 6(1)(e) wording introduced by G.S.R. 779(E), with commencement deferred to 1 October 2022 by G.S.R. 226(E). The implementation remains limited to the rule pack's narrow supported profile.",
       "summary": "For the supported retail-package profile, retail sale price / MRP is a required package declaration. The current wording requires maximum retail price inclusive of taxes in Indian currency. This automated check only evaluates detected structured evidence, not complete legal formatting."
     }
   ]
