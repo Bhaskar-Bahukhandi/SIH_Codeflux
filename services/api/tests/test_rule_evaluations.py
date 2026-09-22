@@ -147,6 +147,14 @@ def test_supported_scope_passes_detected_declaration_evidence(
     assert payload["run"]["rule_pack_id"] == "lmpc-retail-evidence"
     assert payload["run"]["rule_pack_version"] == "2026.09-v1"
     assert len(payload["run"]["rule_pack_sha256"]) == 64
+    assert payload["run"]["rule_pack_snapshot"]["version"] == "2026.09-v1"
+    assert {
+        rule["rule_id"]
+        for rule in payload["run"]["rule_pack_snapshot"]["rules"]
+    } == {
+        "LMPC-R6-1-C-NET-QUANTITY-EVIDENCE",
+        "LMPC-R6-1-E-MRP-EVIDENCE",
+    }
     assert payload["run"]["context_snapshot"] == SUPPORTED_CONTEXT
     assert payload["run"]["result_count"] == 2
 
