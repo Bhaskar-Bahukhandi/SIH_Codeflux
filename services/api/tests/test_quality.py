@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 from sqlalchemy import select
 
 from app.models.audit import AuditEvent, AuditEventType
+from app.models.capture import Capture
 from app.models.quality import CaptureDerivative, CaptureQualityAssessment
 from app.models.user import UserRole
 
@@ -380,3 +381,37 @@ def test_processing_is_blocked_after_inspection_submission(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "inspection_not_editable"
+
+
+def test_processing_rejects_tampered_original_evidence(
+    client,
+    db_session,
+    media_storage,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        sharp_pattern_bytes(),
+    )
+
+    stored_capture = db_session.get(Capture, capture["id"])
+    assert stored_capture is not None
+    media_storage.path_for(stored_capture.storage_key).write_bytes(b"tampered")
+
+    response = process_capture(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "capture_integrity_mismatch"
+    assert db_session.scalar(select(CaptureDerivative)) is None
+    assert db_session.scalar(select(CaptureQualityAssessment)) is None
