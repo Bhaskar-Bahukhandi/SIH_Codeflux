@@ -180,17 +180,21 @@ def _cached_paddle_engine(
     )
 
 
+def build_ocr_engine(settings: Settings) -> OcrEngine:
+    return _cached_paddle_engine(
+        settings.ocr_inference_engine,
+        settings.ocr_language,
+        settings.ocr_model_version,
+        settings.ocr_device,
+        settings.ocr_min_confidence,
+    )
+
+
 def get_ocr_engine(
     settings: Settings = Depends(get_settings),
 ) -> OcrEngine:
     try:
-        return _cached_paddle_engine(
-            settings.ocr_inference_engine,
-            settings.ocr_language,
-            settings.ocr_model_version,
-            settings.ocr_device,
-            settings.ocr_min_confidence,
-        )
+        return build_ocr_engine(settings)
     except OcrBackendUnavailable:
         raise service_unavailable(
             "ocr_backend_unavailable",
