@@ -22,7 +22,7 @@ Implemented:
 
 ## Slice B — image quality and preprocessing foundation
 
-Implemented in the current branch:
+Implemented:
 
 - original-evidence SHA-256 integrity check before processing;
 - EXIF orientation normalization;
@@ -37,29 +37,43 @@ Implemented in the current branch:
 
 See `docs/phase-2/image-quality.md`.
 
+## Slice C — conservative perspective geometry
+
+Implemented:
+
+- normalized-derivative integrity verification;
+- dominant quadrilateral detection;
+- area/angle/geometry heuristic scores;
+- explicit `not_detected`, `review_recommended`, `correction_available` states;
+- separate perspective-corrected derivative only when the safety gate passes;
+- stored corner coordinates, threshold snapshot and algorithm version;
+- normalized-image fallback when correction is unavailable;
+- geometry-analysis audit event.
+
+See `docs/phase-2/perspective-geometry.md`.
+
 ## Evidence rule
 
 The original uploaded image is immutable evidence.
 
-Any preprocessing, OCR preparation or later enhancement must create a derivative. Original bytes/checksum must never be silently replaced.
+Any preprocessing, OCR preparation or geometric correction creates a new derivative. Existing evidence/derivatives are not silently replaced.
 
-## Important boundary
+## Important boundaries
 
-Image-quality results are engineering guidance for capture usability. They are **not** Legal Metrology findings.
+Image-quality and geometry results are engineering guidance. They are **not** Legal Metrology findings and are not calibrated model probabilities.
 
-A poor image means retake/review; it does not mean the package is non-compliant.
+A curved/flexible package may remain uncorrected. OCR must retain the normalized derivative as a fallback.
 
 ## Explicitly not implemented yet
 
-- validated perspective correction;
-- label/region detection;
 - OCR;
+- text/label-region extraction;
 - declaration extraction;
-- font-size measurement;
+- font-size/physical measurement;
 - compliance decisions.
 
 ## Next Phase 2 work
 
-1. validate quality thresholds on a small real package-image set;
-2. add safe perspective/geometry detection only if confidence/failure gates are defensible;
-3. then move to the OCR phase with original/derivative provenance intact.
+1. validate quality/geometry behavior on a small real package-image set;
+2. keep unsupported/ambiguous geometry on the normalized fallback;
+3. then enter the OCR phase with complete source/derivative provenance.

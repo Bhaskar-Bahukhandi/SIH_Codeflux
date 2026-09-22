@@ -20,6 +20,7 @@ class AuditEventType(str, Enum):
     INSPECTION_SUBMITTED = "inspection.submitted"
     CAPTURE_UPLOADED = "capture.uploaded"
     CAPTURE_PROCESSED = "capture.processed"
+    CAPTURE_GEOMETRY_ANALYZED = "capture.geometry_analyzed"
 
 
 class AuditEvent(Base):

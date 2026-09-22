@@ -1,5 +1,6 @@
 from app.models.audit import AuditEvent, AuditEventType
 from app.models.capture import Capture, CaptureViewType
+from app.models.geometry import CaptureGeometryAssessment, GeometryStatus
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.quality import (
     CaptureDerivative,
@@ -13,9 +14,11 @@ __all__ = [
     "AuditEventType",
     "Capture",
     "CaptureDerivative",
+    "CaptureGeometryAssessment",
     "CaptureQualityAssessment",
     "CaptureQualityStatus",
     "CaptureViewType",
+    "GeometryStatus",
     "Inspection",
     "InspectionStatus",
     "User",

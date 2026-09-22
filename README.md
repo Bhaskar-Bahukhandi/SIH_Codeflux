@@ -43,11 +43,12 @@ Completed foundation now includes:
 - versioned image-quality assessments;
 - sharpness, brightness/exposure and local glare heuristics;
 - explicit pass/review/retake capture guidance;
-- audit-traced upload and processing.
+- audit-traced upload and processing;
+- conservative perspective geometry with explicit fallback instead of forced correction.
 
 Image-quality guidance is **not** a Legal Metrology verdict.
 
-The project still does not claim OCR, declaration extraction, validated perspective correction, font-size measurement, rule execution or final reports.
+The project still does not claim OCR, declaration extraction, physical font-size measurement, rule execution or final reports. Geometry correction is deliberately limited to cases that pass a conservative engineering gate.
 
 ## Technical baseline
 
