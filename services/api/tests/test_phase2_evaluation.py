@@ -1,0 +1,156 @@
+import csv
+from io import BytesIO
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+from app.core.config import Settings
+from app.evaluation.phase2 import evaluate_phase2_manifest, load_phase2_manifest
+
+
+def blank_jpeg(path: Path) -> None:
+    buffer = BytesIO()
+    Image.new("RGB", (320, 240), (120, 120, 120)).save(
+        buffer,
+        format="JPEG",
+        quality=95,
+    )
+    path.write_bytes(buffer.getvalue())
+
+
+def write_manifest(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "case_id",
+        "image_path",
+        "dataset_type",
+        "expected_quality_status",
+        "expected_geometry_status",
+        "notes",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_evaluation_keeps_real_and_synthetic_evidence_separate(tmp_path):
+    real_image = tmp_path / "real.jpg"
+    synthetic_image = tmp_path / "synthetic.jpg"
+    blank_jpeg(real_image)
+    blank_jpeg(synthetic_image)
+
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "real-1",
+                "image_path": real_image.name,
+                "dataset_type": "real_package",
+                "expected_quality_status": "retake_recommended",
+                "expected_geometry_status": "not_detected",
+                "notes": "Human-labeled real-package placeholder fixture.",
+            },
+            {
+                "case_id": "synthetic-1",
+                "image_path": synthetic_image.name,
+                "dataset_type": "synthetic",
+                "expected_quality_status": "retake_recommended",
+                "expected_geometry_status": "not_detected",
+                "notes": "Synthetic regression fixture.",
+            },
+        ],
+    )
+
+    report = evaluate_phase2_manifest(
+        manifest,
+        settings=Settings(_env_file=None, app_env="test"),
+    )
+
+    assert report["case_count"] == 2
+    assert report["dataset_counts"] == {
+        "other": 0,
+        "real_package": 1,
+        "synthetic": 1,
+    }
+    assert report["real_package_labeled_quality_count"] == 1
+    assert report["real_package_labeled_geometry_count"] == 1
+    assert report["quality_status_agreement"]["agreement_rate"] == 1.0
+    assert report["geometry_status_agreement"]["agreement_rate"] == 1.0
+    assert report["warnings"] == []
+
+
+def test_unlabeled_dataset_does_not_invent_agreement(tmp_path):
+    image = tmp_path / "package.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "case-1",
+                "image_path": image.name,
+                "dataset_type": "other",
+                "expected_quality_status": "",
+                "expected_geometry_status": "",
+                "notes": "",
+            }
+        ],
+    )
+
+    report = evaluate_phase2_manifest(
+        manifest,
+        settings=Settings(_env_file=None, app_env="test"),
+    )
+
+    assert report["quality_status_agreement"]["labeled_count"] == 0
+    assert report["quality_status_agreement"]["agreement_rate"] is None
+    assert report["geometry_status_agreement"]["labeled_count"] == 0
+    assert report["geometry_status_agreement"]["agreement_rate"] is None
+    assert "no_real_package_cases" in report["warnings"]
+
+
+def test_manifest_rejects_invalid_expected_status(tmp_path):
+    image = tmp_path / "package.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "case-1",
+                "image_path": image.name,
+                "dataset_type": "synthetic",
+                "expected_quality_status": "perfect",
+                "expected_geometry_status": "",
+                "notes": "",
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="expected_quality_status"):
+        load_phase2_manifest(manifest)
+
+
+def test_evaluation_fails_when_manifest_image_is_missing(tmp_path):
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "case-1",
+                "image_path": "missing.jpg",
+                "dataset_type": "real_package",
+                "expected_quality_status": "",
+                "expected_geometry_status": "",
+                "notes": "",
+            }
+        ],
+    )
+
+    with pytest.raises(FileNotFoundError, match="case-1"):
+        evaluate_phase2_manifest(
+            manifest,
+            settings=Settings(_env_file=None, app_env="test"),
+        )
