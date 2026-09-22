@@ -31,26 +31,25 @@ The core workflow is:
 
 ## Current status
 
-**Phase 3 — OCR text-evidence and evaluation foundation**
+**Phase 4 — Declaration extraction and multi-image fusion foundation**
 
 Implemented foundation now includes:
 
 - persisted/authenticated inspection workflow;
-- immutable package-image evidence;
-- protected media storage and SHA-256 integrity checks;
-- normalized and perspective-corrected derivatives with explicit fallback;
+- immutable package-image evidence and protected derivatives;
 - versioned image-quality and geometry assessments;
-- reproducible Phase 2 validation harness;
-- append-only OCR runs with source provenance;
-- ordered OCR blocks with recognition score and polygon;
-- PaddleOCR runtime adapter behind a testable OCR interface;
-- reproducible OCR evaluation harness with CER/WER and real/synthetic evidence separation.
+- append-only OCR evidence with source/checksum provenance;
+- reproducible quality/geometry and OCR evaluation harnesses;
+- deterministic MRP and net-quantity candidate extraction;
+- exact OCR-block provenance for structured observations;
+- multi-image fusion with `not_detected`, `single_source`, `consistent`, and `conflict` states;
+- stale-OCR protection when a capture has been reprocessed.
 
-The project still does **not** claim declaration extraction, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.
+The project still does **not** claim broad declaration coverage, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.
 
-Real-package image-quality/geometry and OCR validation remain evidence gates. Synthetic tests are regression evidence only.
+A declaration state such as `not_detected` is not a compliance verdict. Conflicting package evidence remains visible rather than being auto-resolved.
 
-OCR output is evidence only. Recognition score is an OCR-engine score, not a calibrated legal confidence value, and OCR failure does not by itself prove a mandatory declaration is absent.
+Real-package image-quality/geometry, OCR, and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
 
 ## Technical baseline
 
