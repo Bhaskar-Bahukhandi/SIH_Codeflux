@@ -31,7 +31,7 @@ The core workflow is:
 
 ## Current status
 
-**Phase 4 — Declaration extraction and multi-image fusion foundation**
+**Phase 5 — Versioned preliminary rule-engine foundation**
 
 Implemented foundation now includes:
 
@@ -39,18 +39,19 @@ Implemented foundation now includes:
 - immutable package-image evidence and protected derivatives;
 - versioned image-quality and geometry assessments;
 - append-only OCR evidence with source/checksum provenance;
-- reproducible quality/geometry and OCR evaluation harnesses;
-- deterministic MRP and net-quantity candidate extraction;
-- exact OCR-block provenance for structured observations;
-- multi-image fusion with `not_detected`, `single_source`, `consistent`, and `conflict` states;
-- reproducible declaration-extraction evaluation with exact-value precision/recall/F1;
-- stale-OCR protection when a capture has been reprocessed.
+- deterministic MRP and net-quantity extraction with multi-image conflict preservation;
+- reproducible quality/geometry, OCR and extraction evaluation harnesses;
+- first source-gated rule pack for Rule 6(1)(c) net-quantity evidence and Rule 6(1)(e) MRP evidence;
+- rule-pack ID/version/SHA-256 persisted on every evaluation;
+- officer-supplied applicability context persisted with the evaluation;
+- stale-extraction protection;
+- safe preliminary states that do not turn OCR non-detection into an automatic violation.
 
-The project still does **not** claim broad declaration coverage, physical font-size measurement, Legal Metrology rule execution, final reports or offline synchronization.
+The project still does **not** claim broad declaration coverage, physical font-size measurement, confirmed-absence findings, final legal approval, PDF inspection reports or offline synchronization.
 
-A declaration state such as `not_detected` is not a compliance verdict. Conflicting package evidence remains visible rather than being auto-resolved.
+A Phase 5 pass means a specific preliminary declaration-evidence check passed under the recorded rule pack/context. It is not a certification that the whole package is legally compliant.
 
-Real-package image-quality/geometry, OCR, and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
+Real-package image-quality/geometry, OCR and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
 
 ## Technical baseline
 
@@ -65,7 +66,7 @@ Real-package image-quality/geometry, OCR, and declaration-extraction validation 
 
 Development is staged and reversible:
 
-- `main` stays stable.
+- main stays stable.
 - Work is done on phase/feature branches.
 - Each phase has an explicit acceptance gate.
 - Validation evidence is required before a phase is considered complete.
