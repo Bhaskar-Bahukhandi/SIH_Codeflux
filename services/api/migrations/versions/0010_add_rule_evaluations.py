@@ -26,6 +26,7 @@ def upgrade() -> None:
         sa.Column("rule_pack_id", sa.String(length=100), nullable=False),
         sa.Column("rule_pack_version", sa.String(length=64), nullable=False),
         sa.Column("rule_pack_sha256", sa.String(length=64), nullable=False),
+        sa.Column("rule_pack_snapshot", sa.JSON(), nullable=False),
         sa.Column("context_snapshot", sa.JSON(), nullable=False),
         sa.Column("result_count", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
