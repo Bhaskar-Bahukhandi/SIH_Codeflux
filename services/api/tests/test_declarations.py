@@ -449,3 +449,36 @@ def test_supervisor_can_read_latest_but_cannot_extract(
         headers=supervisor_headers,
     )
     assert rejected.status_code == 403
+
+
+def test_empty_ocr_run_produces_technical_not_detected_not_error(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture, derivative = upload_and_process(
+        client, inspection["id"], headers, "front"
+    )
+    seed_ocr(
+        db_session,
+        capture_id=capture["id"],
+        derivative=derivative,
+        texts=[],
+    )
+
+    response = client.post(
+        f"/api/v1/inspections/{inspection['id']}/declarations/extract",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["source_capture_count"] == 1
+    assert payload["run"]["observation_count"] == 0
+    assert payload["observations"] == []
+    assert summary(payload, "mrp")["status"] == "not_detected"
+    assert summary(payload, "net_quantity")["status"] == "not_detected"
