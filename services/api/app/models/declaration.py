@@ -75,7 +75,17 @@ class DeclarationExtractionRun(Base):
     fusion_version: Mapped[str] = mapped_column(String(64), nullable=False)
     inspection_capture_count: Mapped[int] = mapped_column(Integer, nullable=False)
     source_capture_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_capture_ids: Mapped[list[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
     source_ocr_run_ids: Mapped[list[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+    skipped_sources: Mapped[list[dict]] = mapped_column(
         JSON,
         default=list,
         nullable=False,
