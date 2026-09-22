@@ -150,8 +150,14 @@ def test_supported_scope_passes_detected_declaration_evidence(
     assert payload["run"]["context_snapshot"] == SUPPORTED_CONTEXT
     assert payload["run"]["result_count"] == 2
 
-    assert result_by_type(payload, "mrp")["status"] == "pass"
-    assert result_by_type(payload, "net_quantity")["status"] == "pass"
+    mrp_result = result_by_type(payload, "mrp")
+    net_quantity_result = result_by_type(payload, "net_quantity")
+    assert mrp_result["status"] == "pass"
+    assert net_quantity_result["status"] == "pass"
+    assert mrp_result["details"]["effective_from"] == "2022-10-01"
+    assert net_quantity_result["details"]["effective_from"] == "2011-04-01"
+    assert mrp_result["details"]["source_ids"]
+    assert net_quantity_result["details"]["applicability_note"]
 
     events = list(
         db_session.scalars(
