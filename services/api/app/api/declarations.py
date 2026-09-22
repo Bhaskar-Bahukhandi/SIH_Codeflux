@@ -8,14 +8,13 @@ from app.auth import get_current_user, require_officer
 from app.db import get_db
 from app.errors import conflict, not_found
 from app.models.audit import AuditEventType
-from app.models.capture import Capture
 from app.models.declaration import (
     DeclarationExtractionRun,
     DeclarationObservation,
     DeclarationObservationBlock,
     DeclarationSummary,
 )
-from app.models.ocr import OcrBlock, OcrRun
+from app.models.ocr import OcrBlock
 from app.models.user import User
 from app.schemas.declaration import DeclarationExtractionResultRead
 from app.services.audit import record_inspection_event
@@ -29,27 +28,14 @@ from app.services.declaration_fusion import (
     FusionObservation,
     fuse_declarations,
 )
+from app.services.declaration_sources import collect_current_ocr_sources
 from app.services.inspection_access import get_visible_inspection_or_raise
 from app.services.inspection_lifecycle import require_draft
-from app.services.ocr_source import select_ocr_source_derivative
 
 router = APIRouter(
     prefix="/inspections/{inspection_id}/declarations",
     tags=["declarations"],
 )
-
-
-def _latest_ocr_run(
-    db: Session,
-    *,
-    capture_id: str,
-) -> OcrRun | None:
-    return db.scalar(
-        select(OcrRun)
-        .where(OcrRun.capture_id == capture_id)
-        .order_by(OcrRun.created_at.desc(), OcrRun.id.desc())
-        .limit(1)
-    )
 
 
 def _result_for_run(
@@ -123,43 +109,11 @@ def extract_inspection_declarations(
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
     require_draft(inspection)
 
-    captures = list(
-        db.scalars(
-            select(Capture)
-            .where(Capture.inspection_id == inspection.id)
-            .order_by(Capture.created_at.asc(), Capture.id.asc())
-        ).all()
+    current = collect_current_ocr_sources(
+        db,
+        inspection_id=inspection.id,
     )
-
-    source_pairs: list[tuple[Capture, OcrRun]] = []
-    skipped_sources: list[dict] = []
-
-    for capture in captures:
-        latest_ocr = _latest_ocr_run(db, capture_id=capture.id)
-        if latest_ocr is None:
-            skipped_sources.append(
-                {
-                    "capture_id": capture.id,
-                    "reason": "no_ocr",
-                }
-            )
-            continue
-
-        current_source = select_ocr_source_derivative(
-            db,
-            capture_id=capture.id,
-        )
-        if latest_ocr.source_derivative_id != current_source.id:
-            skipped_sources.append(
-                {
-                    "capture_id": capture.id,
-                    "reason": "stale_ocr",
-                    "ocr_run_id": latest_ocr.id,
-                }
-            )
-            continue
-
-        source_pairs.append((capture, latest_ocr))
+    source_pairs = current.source_pairs
 
     if not source_pairs:
         raise conflict(
@@ -172,11 +126,11 @@ def extract_inspection_declarations(
         actor_user_id=officer.id,
         extractor_version=DECLARATION_EXTRACTOR_VERSION,
         fusion_version=DECLARATION_FUSION_VERSION,
-        inspection_capture_count=len(captures),
+        inspection_capture_count=current.inspection_capture_count,
         source_capture_count=len(source_pairs),
-        source_capture_ids=[capture.id for capture, _ in source_pairs],
-        source_ocr_run_ids=[ocr.id for _, ocr in source_pairs],
-        skipped_sources=skipped_sources,
+        source_capture_ids=current.source_capture_ids,
+        source_ocr_run_ids=current.source_ocr_run_ids,
+        skipped_sources=current.skipped_sources,
         observation_count=0,
     )
     db.add(run)
