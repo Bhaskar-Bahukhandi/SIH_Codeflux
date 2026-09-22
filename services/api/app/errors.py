@@ -41,7 +41,7 @@ def unsupported_media(code: str, message: str) -> AppError:
 
 
 def unprocessable(code: str, message: str) -> AppError:
-    return AppError(code, message, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    return AppError(code, message, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
 def service_unavailable(code: str, message: str) -> AppError:
