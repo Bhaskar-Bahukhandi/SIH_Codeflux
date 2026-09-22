@@ -1,0 +1,52 @@
+name: API Regression Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "phase/**"
+    paths:
+      - "services/api/**"
+      - "evaluation/**"
+      - ".github/workflows/api-tests.yml"
+  pull_request:
+    paths:
+      - "services/api/**"
+      - "evaluation/**"
+      - ".github/workflows/api-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      APP_ENV: test
+      JWT_SECRET: test-only-secret-not-for-deployment
+      DATABASE_URL: sqlite+pysqlite:///./ci-validation.sqlite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+
+      - name: Install API and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Validate migration chain
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Run API regression suite
+        run: pytest
