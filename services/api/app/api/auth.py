@@ -8,7 +8,7 @@ from app.db import get_db
 from app.errors import unauthorized
 from app.models.user import User
 from app.schemas.auth import AccessTokenResponse, CurrentUserRead, LoginRequest
-from app.security import create_access_token, verify_password
+from app.security import create_access_token, verify_password_or_dummy
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -22,11 +22,17 @@ def login(
     statement = select(User).where(func.lower(User.email) == payload.email)
     user = db.scalar(statement)
 
-    if (
-        user is None
-        or not user.is_active
-        or not verify_password(payload.password, user.password_hash)
-    ):
+    credential_hash = (
+        user.password_hash
+        if user is not None and user.is_active
+        else None
+    )
+    password_valid = verify_password_or_dummy(
+        payload.password,
+        credential_hash,
+    )
+
+    if user is None or not user.is_active or not password_valid:
         raise unauthorized("invalid_credentials", "Invalid email or password.")
 
     token = create_access_token(user, settings)
