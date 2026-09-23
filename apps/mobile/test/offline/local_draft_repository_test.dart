@@ -57,7 +57,7 @@ void main() {
       inspectionId: inspectionId,
       viewType: "front",
       localPath: "/local/evidence/front.jpg",
-      sha256: "a" * 64,
+      sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       sizeBytes: 123,
       now: createdAt.add(const Duration(seconds: 1)),
     );
@@ -77,7 +77,10 @@ void main() {
     expect(reopenedInspection.syncState, SyncState.localOnly);
     expect(reopenedEvidence, isNotNull);
     expect(reopenedEvidence!.inspectionId, inspectionId);
-    expect(reopenedEvidence.sha256, "a" * 64);
+    expect(
+      reopenedEvidence.sha256,
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
     expect(reopenedEvidence.syncState, SyncState.localOnly);
   });
 
