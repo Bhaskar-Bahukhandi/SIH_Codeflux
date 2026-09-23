@@ -73,7 +73,7 @@ def _rule_lines(result: dict) -> Iterable[tuple[str, bool]]:
             )
 
 
-def build_report_pdf(snapshot: dict) -> bytes:
+def build_report_pdf(snapshot: dict, *, snapshot_sha256: str) -> bytes:
     buffer = BytesIO()
     pdf = canvas.Canvas(
         buffer,
@@ -118,6 +118,7 @@ def build_report_pdf(snapshot: dict) -> bytes:
     line(f"Report ID: {snapshot['report_id']}")
     line(f"Report version: {snapshot['report_version']}")
     line(f"Finalization ID: {snapshot['finalization_id']}")
+    line(f"Content checksum (snapshot SHA-256): {snapshot_sha256}")
     line(f"Finalized at: {snapshot['finalized_at']}", gap_after=8)
 
     line("Inspection", bold=True, size=11, gap_after=2)
