@@ -277,9 +277,16 @@ void main() {
     expect(addImageButton, findsOneWidget);
     await tester.tap(addImageButton);
     await pumpUntilFound(tester, find.text("Which side are you capturing?"));
-    await tester.tap(find.text("Front"));
+    final frontOption = find.widgetWithText(ListTile, "Front");
+    await tester.ensureVisible(frontOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(frontOption);
+
     await pumpUntilFound(tester, find.text("Take photo"));
-    await tester.tap(find.text("Take photo"));
+    final cameraOption = find.widgetWithText(ListTile, "Take photo");
+    await tester.ensureVisible(cameraOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(cameraOption);
     await pumpUntilFound(
       tester,
       find.textContaining("image saved locally and queued"),
