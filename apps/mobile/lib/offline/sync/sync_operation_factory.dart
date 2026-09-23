@@ -50,6 +50,30 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation processCapture({
+    required String inspectionId,
+    required String captureId,
+    required String derivativeId,
+    required String qualityAssessmentId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.processCapture,
+      resourceId: qualityAssessmentId,
+      payload: <String, Object?>{
+        "capture_id": captureId,
+        "derivative_id": derivativeId,
+        "quality_assessment_id": qualityAssessmentId,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation runOcr({
     required String inspectionId,
     required String captureId,
