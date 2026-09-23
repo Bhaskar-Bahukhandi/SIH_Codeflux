@@ -611,3 +611,35 @@ def test_fresh_rule_evaluation_allows_resubmit_after_recheck(
     )
     assert fresh_review.status_code == 200
     assert fresh_review.json()["revision"] == 1
+
+
+def test_corrected_values_reject_nonfinite_or_extreme_numbers(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    for amount in ["NaN", "Infinity", "1e1000"]:
+        response = review(
+            client,
+            inspection["id"],
+            result.id,
+            headers,
+            {
+                "decision": "corrected",
+                "corrected_value": {"currency": "INR", "amount": amount},
+                "note": "Manual correction.",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_corrected_value"
