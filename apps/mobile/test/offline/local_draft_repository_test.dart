@@ -44,6 +44,7 @@ void main() {
 
     final inspection = await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "  Local Product  ",
       productIdentifier: " LOCAL-001 ",
       now: createdAt,
@@ -89,10 +90,12 @@ void main() {
 
     final first = await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Product",
     );
     final replay = await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Product",
     );
     expect(replay.id, first.id);
@@ -100,6 +103,7 @@ void main() {
     await expectLater(
       drafts.createInspection(
         id: inspectionId,
+        officerUserId: "officer-1",
         productName: "Different Product",
       ),
       throwsA(isA<StateError>()),
