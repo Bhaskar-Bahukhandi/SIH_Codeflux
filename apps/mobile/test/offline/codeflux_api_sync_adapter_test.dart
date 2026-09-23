@@ -535,6 +535,7 @@ void main() {
         jsonEncode(<Object?>[
           <String, Object?>{
             "id": captureId,
+            "inspection_id": inspectionId,
             "sha256": digest,
             "size_bytes": 321,
             "view_type": "detail",
