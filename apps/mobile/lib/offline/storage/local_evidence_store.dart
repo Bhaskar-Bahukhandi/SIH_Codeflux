@@ -76,7 +76,7 @@ class LocalEvidenceStore {
     }
 
     final temporary = File(
-      destination.path + "." + const Uuid().v4() + ".tmp",
+      destination.path + "." + Uuid().v4() + ".tmp",
     );
     try {
       await temporary.writeAsBytes(bytes, flush: true);
