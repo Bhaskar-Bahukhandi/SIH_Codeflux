@@ -121,9 +121,30 @@ class SyncCoordinator {
       );
 
       if (failure.timedOut && decision.requiresReconciliation) {
-        final reconciliation = reconciler == null
-            ? const ReconciliationResult.unresolved()
-            : await reconciler!.reconcile(operation);
+        ReconciliationResult reconciliation;
+        try {
+          reconciliation = reconciler == null
+              ? const ReconciliationResult.unresolved()
+              : await reconciler!.reconcile(operation);
+        } on SyncRequestFailure catch (reconciliationFailure) {
+          await queue.markFailure(
+            operation.id,
+            decision: const SyncFailureDecision(
+              kind: SyncFailureKind.timeoutOutcomeUnknown,
+              targetState: SyncState.retryRequired,
+              autoRetry: false,
+              requiresReconciliation: true,
+            ),
+            retryPolicy: retryPolicy,
+            apiCode: reconciliationFailure.apiCode,
+            message: reconciliationFailure.message,
+            now: timestamp,
+          );
+          return SyncCycleResult(
+            status: SyncCycleStatus.reconciliationRequired,
+            operationId: operation.id,
+          );
+        }
 
         if (reconciliation.status == ReconciliationStatus.applied) {
           await queue.markSynced(
@@ -183,6 +204,77 @@ class SyncCoordinator {
         status: status,
         operationId: operation.id,
       );
+    }
+  }
+
+  Future<SyncCycleResult> reconcilePending(
+    String operationId, {
+    DateTime? now,
+  }) async {
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    final operation = await queue.getById(operationId);
+    if (operation == null) {
+      throw StateError("Sync operation does not exist.");
+    }
+    if (operation.state != SyncState.retryRequired ||
+        operation.nextAttemptAt != null) {
+      throw StateError(
+        "Operation is not parked waiting for reconciliation.",
+      );
+    }
+    if (reconciler == null) {
+      return SyncCycleResult(
+        status: SyncCycleStatus.reconciliationRequired,
+        operationId: operation.id,
+      );
+    }
+
+    ReconciliationResult reconciliation;
+    try {
+      reconciliation = await reconciler!.reconcile(operation);
+    } on SyncRequestFailure catch (failure) {
+      await queue.recordReconciliationFailure(
+        operation.id,
+        apiCode: failure.apiCode,
+        message: failure.message,
+        now: timestamp,
+      );
+      return SyncCycleResult(
+        status: SyncCycleStatus.reconciliationRequired,
+        operationId: operation.id,
+      );
+    }
+
+    switch (reconciliation.status) {
+      case ReconciliationStatus.applied:
+        await queue.markSynced(
+          operation.id,
+          remoteResourceId: reconciliation.remoteResourceId,
+          reconciledAfterUnknownOutcome: true,
+          now: timestamp,
+        );
+        return SyncCycleResult(
+          status: SyncCycleStatus.synced,
+          operationId: operation.id,
+        );
+      case ReconciliationStatus.notApplied:
+        await queue.scheduleRetryAfterReconciliation(
+          operation.id,
+          retryPolicy: retryPolicy,
+          now: timestamp,
+        );
+        final updated = await queue.getById(operation.id);
+        return SyncCycleResult(
+          status: updated!.state == SyncState.blocked
+              ? SyncCycleStatus.blocked
+              : SyncCycleStatus.retryScheduled,
+          operationId: operation.id,
+        );
+      case ReconciliationStatus.unresolved:
+        return SyncCycleResult(
+          status: SyncCycleStatus.reconciliationRequired,
+          operationId: operation.id,
+        );
     }
   }
 }
