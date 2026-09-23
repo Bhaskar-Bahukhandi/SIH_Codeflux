@@ -494,7 +494,8 @@ class CodefluxApiSyncAdapter
       "view_type",
     );
 
-    if (remote["sha256"]?.toString() != expectedSha256 ||
+    if (remote["inspection_id"]?.toString() != operation.inspectionId ||
+        remote["sha256"]?.toString() != expectedSha256 ||
         remote["size_bytes"] != expectedSize ||
         remote["view_type"]?.toString() != expectedView) {
       return const ReconciliationResult.unresolved();
