@@ -24,6 +24,7 @@ class AuditEventType(str, Enum):
     CAPTURE_OCR_COMPLETED = "capture.ocr_completed"
     DECLARATION_EXTRACTION_COMPLETED = "declaration.extraction_completed"
     RULE_EVALUATION_COMPLETED = "rule_evaluation.completed"
+    FINDING_REVIEW_RECORDED = "finding_review.recorded"
 
 
 class AuditEvent(Base):
