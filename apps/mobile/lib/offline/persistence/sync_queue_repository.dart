@@ -251,6 +251,82 @@ class SyncQueueRepository {
     );
   }
 
+  Future<void> scheduleRetryAfterReconciliation(
+    String id, {
+    required SyncRetryPolicy retryPolicy,
+    DateTime? now,
+  }) async {
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    final operation = await _requireOperation(id);
+    if (operation.state != SyncState.retryRequired ||
+        operation.nextAttemptAt != null) {
+      throw StateError(
+        "Only a parked reconciliation-required operation can be released for retry.",
+      );
+    }
+
+    if (!retryPolicy.canRetry(operation.attemptCount)) {
+      await offlineDatabase.database.update(
+        "sync_operations",
+        <String, Object?>{
+          "state": SyncState.blocked.dbValue,
+          "last_error_kind": "retry_exhausted",
+          "last_error_code": null,
+          "last_error_message":
+              "The operation was reconciled as not applied, but its retry budget is exhausted.",
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      return;
+    }
+
+    await offlineDatabase.database.update(
+      "sync_operations",
+      <String, Object?>{
+        "next_attempt_at": retryPolicy
+            .nextAttemptAt(timestamp, operation.attemptCount)
+            .toIso8601String(),
+        "last_error_kind": "reconciled_not_applied",
+        "last_error_code": null,
+        "last_error_message":
+            "Server reconciliation confirmed the previous request was not applied.",
+        "updated_at": timestamp.toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: <Object?>[id],
+    );
+  }
+
+  Future<void> recordReconciliationFailure(
+    String id, {
+    String? apiCode,
+    String? message,
+    DateTime? now,
+  }) async {
+    final operation = await _requireOperation(id);
+    if (operation.state != SyncState.retryRequired ||
+        operation.nextAttemptAt != null) {
+      throw StateError(
+        "Reconciliation failure can be recorded only for a parked operation.",
+      );
+    }
+    await offlineDatabase.database.update(
+      "sync_operations",
+      <String, Object?>{
+        "last_error_kind": "reconciliation_unavailable",
+        "last_error_code": apiCode,
+        "last_error_message": message,
+        "updated_at": (now ?? DateTime.now().toUtc())
+            .toUtc()
+            .toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: <Object?>[id],
+    );
+  }
+
   Future<int> recoverInterruptedSyncs({DateTime? now}) async {
     final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
     return offlineDatabase.database.update(
