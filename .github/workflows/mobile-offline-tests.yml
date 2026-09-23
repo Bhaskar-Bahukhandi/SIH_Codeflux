@@ -50,5 +50,8 @@ jobs:
           timeout --signal=TERM 4m flutter test test/app --reporter expanded
           timeout --signal=TERM 4m flutter test test/capture --reporter expanded
 
-      - name: Test Officer UI
-        run: timeout --signal=TERM 6m flutter test test/ui --reporter expanded
+      - name: Test login UI
+        run: timeout --signal=TERM 3m flutter test test/ui/login_screen_test.dart --reporter expanded
+
+      - name: Test Officer field flow
+        run: timeout --signal=TERM 4m flutter test test/ui/officer_field_flow_test.dart --reporter expanded
