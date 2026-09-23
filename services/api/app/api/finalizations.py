@@ -46,6 +46,14 @@ def _get_finalization(
     )
 
 
+def _verify_snapshot_integrity(finalization: InspectionFinalization) -> None:
+    if snapshot_sha256(finalization.snapshot) != finalization.snapshot_sha256:
+        raise service_unavailable(
+            "finalization_snapshot_integrity_failed",
+            "The finalized inspection snapshot failed its integrity check.",
+        )
+
+
 @router.post("", response_model=InspectionFinalizationRead)
 def finalize_inspection_record(
     inspection_id: str,
@@ -176,6 +184,7 @@ def get_inspection_finalization(
             "inspection_finalization_not_found",
             "No finalization record exists for this inspection.",
         )
+    _verify_snapshot_integrity(finalization)
     return finalization
 
 
@@ -194,6 +203,8 @@ def get_finalized_report(
             "No finalization record exists for this inspection.",
         )
 
+    _verify_snapshot_integrity(finalization)
+
     path = storage.path_for(finalization.report_storage_key)
     if not path.is_file():
         raise service_unavailable(
@@ -202,7 +213,10 @@ def get_finalized_report(
         )
 
     report_bytes = path.read_bytes()
-    if hashlib.sha256(report_bytes).hexdigest() != finalization.report_sha256:
+    if (
+        len(report_bytes) != finalization.report_size_bytes
+        or hashlib.sha256(report_bytes).hexdigest() != finalization.report_sha256
+    ):
         raise service_unavailable(
             "finalized_report_integrity_failed",
             "The finalized report failed its integrity check.",
