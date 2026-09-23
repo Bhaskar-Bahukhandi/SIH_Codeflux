@@ -28,3 +28,9 @@ def submit_for_review(inspection: Inspection) -> None:
     require_draft(inspection)
     inspection.status = InspectionStatus.PENDING_REVIEW
     inspection.submitted_at = utcnow()
+
+
+def reopen_for_recheck(inspection: Inspection) -> None:
+    require_pending_review(inspection)
+    inspection.status = InspectionStatus.DRAFT
+    inspection.submitted_at = None
