@@ -270,9 +270,9 @@ void main() {
       filename: "front.png",
     );
 
-    final addImageButton = find.ancestor(
-      of: find.text("Add image"),
-      matching: find.byType(FloatingActionButton),
+    final addImageButton = find.widgetWithText(
+      TextButton,
+      "Add",
     );
     expect(addImageButton, findsOneWidget);
     await tester.tap(addImageButton);
