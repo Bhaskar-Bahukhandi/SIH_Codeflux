@@ -16,6 +16,7 @@ void main() {
     final factory = SyncOperationFactory();
     final inspection = LocalInspectionDraft(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Canonical Product",
       productIdentifier: "SKU-1",
       syncState: SyncState.localOnly,
