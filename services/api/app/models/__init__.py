@@ -16,6 +16,11 @@ from app.models.quality import (
     CaptureQualityAssessment,
     CaptureQualityStatus,
 )
+from app.models.rule_evaluation import (
+    RuleEvaluationResult,
+    RuleEvaluationRun,
+    RuleEvaluationStatus,
+)
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -38,6 +43,9 @@ __all__ = [
     "InspectionStatus",
     "OcrBlock",
     "OcrRun",
+    "RuleEvaluationResult",
+    "RuleEvaluationRun",
+    "RuleEvaluationStatus",
     "User",
     "UserRole",
 ]

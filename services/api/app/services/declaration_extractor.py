@@ -8,10 +8,16 @@ from statistics import mean
 
 from app.models.declaration import DeclarationType
 
-DECLARATION_EXTRACTOR_VERSION = "declaration-extractor-v1"
+DECLARATION_EXTRACTOR_VERSION = "declaration-extractor-v2"
 SUPPORTED_DECLARATION_TYPES = (
     DeclarationType.MRP,
     DeclarationType.NET_QUANTITY,
+)
+
+_MRP_LABEL = re.compile(
+    r"\b(?:m\.?\s*r\.?\s*p\.?|maximum\s+retail\s+price|"
+    r"retail\s+sale\s+price)\b",
+    re.IGNORECASE,
 )
 
 _MRP = re.compile(
@@ -19,6 +25,11 @@ _MRP = re.compile(
     r"retail\s+sale\s+price)\s*[:\-]?\s*"
     r"(?:rs\.?|inr|₹)?\s*"
     r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
+    re.IGNORECASE,
+)
+
+_NET_QUANTITY_LABEL = re.compile(
+    r"\bnet\s*(?:qty|quantity|wt|weight|content)\.?\b",
     re.IGNORECASE,
 )
 
@@ -143,6 +154,17 @@ def _extract_type(
     return None
 
 
+def _contains_label(
+    declaration_type: DeclarationType,
+    text: str,
+) -> bool:
+    if declaration_type is DeclarationType.MRP:
+        return _MRP_LABEL.search(text) is not None
+    if declaration_type is DeclarationType.NET_QUANTITY:
+        return _NET_QUANTITY_LABEL.search(text) is not None
+    return False
+
+
 def extract_declarations(
     blocks: list[OcrTextEvidence],
 ) -> list[ExtractedDeclaration]:
@@ -155,7 +177,11 @@ def extract_declarations(
             matched = _extract_type(declaration_type, block.text)
             evidence = [block]
 
-            if matched is None and index + 1 < len(ordered):
+            if (
+                matched is None
+                and index + 1 < len(ordered)
+                and _contains_label(declaration_type, block.text)
+            ):
                 next_block = ordered[index + 1]
                 combined = f"{block.text} {next_block.text}"
                 matched = _extract_type(declaration_type, combined)

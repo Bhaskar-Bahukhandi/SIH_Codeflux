@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "rule_pack_id": "lmpc-retail-evidence",
+  "version": "2026.09-v1",
+  "jurisdiction": "India",
+  "authority": "Department of Consumer Affairs, Government of India",
+  "verified_on": "2026-09-23",
+  "purpose": "Preliminary evidence checks for the narrow supported retail-package profile. This rule pack does not make a final legal determination.",
+  "supported_scope": {
+    "intended_for_retail_sale": true,
+    "industrial_or_institutional_consumer": false,
+    "package_exceeds_25kg_or_25l": false
+  },
+  "sources": [
+    {
+      "source_id": "doca-consolidated-lmpc",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011 with amendments",
+      "kind": "official_consolidated_rules",
+      "url": "https://consumeraffairs.nic.in/sites/default/files/file-uploads/latestnews/LM_PCR_All_Amendements.pdf",
+      "checked_on": "2026-09-23"
+    },
+    {
+      "source_id": "gsr-779e-2021",
+      "title": "Legal Metrology (Packaged Commodities) Amendment Rules, 2021, G.S.R. 779(E)",
+      "kind": "official_gazette_amendment",
+      "url": "https://consumeraffairs.nic.in/sites/default/files/file-uploads/latestnews/230946.pdf",
+      "checked_on": "2026-09-23"
+    },
+    {
+      "source_id": "gsr-226e-2022",
+      "title": "Legal Metrology (Packaged Commodities) Amendment Rules, 2022, G.S.R. 226(E)",
+      "kind": "official_gazette_amendment",
+      "url": "https://consumeraffairs.nic.in/sites/default/files/uploads/legal-metrology-acts-rules/GSR226.pdf",
+      "checked_on": "2026-09-23"
+    },
+    {
+      "source_id": "doca-advisory-2023-01-18",
+      "title": "Advisory on mandatory information on outer retail packages",
+      "kind": "official_department_advisory",
+      "url": "https://consumeraffairs.nic.in/sites/default/files/file-uploads/latestnews/2023.01.18%20advisory%20for%20outer%20gift%20package%20declarations.pdf",
+      "checked_on": "2026-09-23"
+    },
+    {
+      "source_id": "gsr-722e-2023",
+      "title": "Legal Metrology (Packaged Commodities) Amendment Rules, 2023, G.S.R. 722(E)",
+      "kind": "official_gazette_amendment",
+      "url": "https://consumeraffairs.nic.in/sites/default/files/uploads/legal-metrology-acts-rules/2023.10.6%20amendment%20in%20PCR.pdf",
+      "checked_on": "2026-09-23"
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "LMPC-R6-1-C-NET-QUANTITY-EVIDENCE",
+      "provision": "Rule 6(1)(c)",
+      "effective_from": "2011-04-01",
+      "declaration_type": "net_quantity",
+      "check_type": "declaration_evidence_presence",
+      "source_ids": [
+        "doca-consolidated-lmpc",
+        "doca-advisory-2023-01-18"
+      ],
+      "applicability_note": "This implementation is restricted to the rule pack's narrow officer-confirmed retail profile and does not attempt every statutory exception or commodity-specific requirement.",
+      "summary": "For the supported retail-package profile, net quantity is a required package declaration. This automated check only evaluates whether current structured evidence was detected and is internally consistent."
+    },
+    {
+      "rule_id": "LMPC-R6-1-E-MRP-EVIDENCE",
+      "provision": "Rule 6(1)(e)",
+      "effective_from": "2022-10-01",
+      "declaration_type": "mrp",
+      "check_type": "declaration_evidence_presence",
+      "source_ids": [
+        "doca-consolidated-lmpc",
+        "gsr-779e-2021",
+        "gsr-226e-2022",
+        "doca-advisory-2023-01-18"
+      ],
+      "applicability_note": "The effective date refers to the current Rule 6(1)(e) wording introduced by G.S.R. 779(E), with commencement deferred to 1 October 2022 by G.S.R. 226(E). The implementation remains limited to the rule pack's narrow supported profile.",
+      "summary": "For the supported retail-package profile, retail sale price / MRP is a required package declaration. The current wording requires maximum retail price inclusive of taxes in Indian currency. This automated check only evaluates detected structured evidence, not complete legal formatting."
+    }
+  ]
+}

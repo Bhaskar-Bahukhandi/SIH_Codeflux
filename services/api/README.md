@@ -2,113 +2,102 @@
 
 Technology: Python + FastAPI.
 
-The API contains the data/access, capture/preprocessing, OCR text-evidence, and initial declaration-extraction foundations.
+The API contains the data/access, capture/preprocessing, OCR evidence, declaration-extraction and first versioned preliminary rule-evaluation foundations.
 
 ## Current capabilities
 
 - liveness and database readiness;
 - versioned Alembic migrations;
-- Officer / Supervisor / Admin users;
-- Argon2 password hashing and JWT authentication;
+- Officer / Supervisor / Admin authentication and access control;
 - officer-owned inspection lifecycle;
-- supervisor/admin read access;
-- append-only inspection audit events;
-- authenticated package-image upload;
-- immutable original-image SHA-256 provenance;
-- normalized and perspective-corrected derivatives with fallback;
+- authenticated package-image upload and immutable original-image provenance;
+- normalized/perspective derivatives with fallback;
 - versioned image-quality and geometry assessments;
-- append-only OCR runs with source-derivative provenance;
-- ordered OCR text blocks with recognition score and polygon;
+- append-only OCR runs with source/checksum provenance;
 - deterministic MRP and net-quantity candidate extraction;
-- OCR-block provenance for each extracted observation;
-- inspection-level multi-image fusion with explicit conflict preservation.
+- OCR-block provenance and multi-image conflict preservation;
+- versioned source-gated rule pack for Rule 6(1)(c) net quantity evidence and Rule 6(1)(e) MRP evidence;
+- persisted rule-pack ID/version/SHA-256 plus a full logical rule-pack snapshot, source extraction run and officer context;
+- explicit pass, manual_verification_required, indeterminate, and not_evaluated behavior for the current pack.
 
-Physical measurement, Legal Metrology applicability/rule execution, officer finding approval, reports and offline sync are not represented as working yet.
+Physical measurement, confirmed-absence findings, officer finding approval/finalization, reports and offline sync are not represented as working yet.
 
 ## Local setup
 
-From `services/api`:
+From services/api:
 
-```bash
-python -m venv .venv
-# activate the virtual environment
-pip install -e ".[dev]"
-```
-
-Create a local `.env` from the repository `.env.example`.
-
-Apply migrations:
-
-```bash
-alembic upgrade head
-```
-
-Create a prototype officer account:
-
-```bash
-python -m app.cli.create_user \
-  --email officer@example.test \
-  --name "Demo Officer" \
-  --role officer
-```
-
-Run:
-
-```bash
-uvicorn app.main:app --reload
-pytest
-```
+    python -m venv .venv
+    # activate the virtual environment
+    pip install -e ".[dev]"
+    alembic upgrade head
+    uvicorn app.main:app --reload
+    pytest
 
 ## OCR runtime
 
 The production OCR adapter uses PaddleOCR 3.x behind a pluggable OCR interface.
 
-Install the Python adapter extra:
+    pip install -e ".[ocr]"
 
-```bash
-pip install -e ".[ocr]"
-```
+OCR output is evidence only. Recognition score is not a calibrated legal-confidence probability.
 
-A compatible inference engine/runtime is still required on the target machine.
-
-OCR output is evidence only. Recognition score is not a calibrated legal confidence value.
-
-## Declaration extraction endpoints
+## Declaration extraction
 
 For an authenticated officer-owned draft inspection:
 
-- `POST /api/v1/inspections/{inspection_id}/declarations/extract`
-- `GET /api/v1/inspections/{inspection_id}/declarations/latest`
+- POST /api/v1/inspections/{inspection_id}/declarations/extract
+- GET /api/v1/inspections/{inspection_id}/declarations/latest
 
-The first extractor supports:
+Initial supported types:
 
-- MRP / retail sale price candidates;
-- net quantity candidates.
+- MRP / retail sale price;
+- net quantity.
 
-Each observation retains capture, OCR-run and OCR-block provenance plus raw text, normalized value, and the underlying OCR recognition scores.
+Fusion states:
 
-## Fusion states
-
-- `not_detected`
-- `single_source`
-- `consistent`
-- `conflict`
-
-`consistent` requires the same normalized value on at least two distinct captures.
+- not_detected
+- single_source
+- consistent
+- conflict
 
 A conflict is never resolved by silently choosing one value.
 
-## Current-source protection
+## Preliminary rule evaluation
 
-Extraction uses a capture's latest OCR run only when that OCR run still points to the current OCR source derivative.
+Endpoints:
 
-If preprocessing changed after OCR, that OCR evidence is recorded as `stale_ocr` and excluded until OCR is rerun.
+- POST /api/v1/inspections/{inspection_id}/rule-evaluations/evaluate
+- GET /api/v1/inspections/{inspection_id}/rule-evaluations/latest
+
+The current request supplies factual applicability context:
+
+    {
+      "context": {
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false
+      }
+    }
+
+The first rule pack is lmpc-retail-evidence@2026.09-v1.
+
+It evaluates only preliminary declaration evidence for Rule 6(1)(c) and Rule 6(1)(e).
+
+### Critical semantics
+
+- detected single/consistent evidence -> pass for the preliminary evidence check;
+- conflicting values -> manual_verification_required;
+- not_detected -> manual_verification_required, never automatic non-compliance;
+- incomplete context -> indeterminate;
+- unsupported context -> not_evaluated.
+
+Rule evaluation is rejected if the declaration extraction has become stale after capture/preprocessing/OCR changes.
 
 ## Legal boundary
 
-`not_detected` is a technical extraction state only. It does not mean the declaration is legally required, physically absent, or non-compliant.
+The current rule engine does not issue a final legal verdict, penalty or notice.
 
-The current extraction layer contains no Legal Metrology applicability decision or violation logic.
+A pass means the current declaration-evidence check passed under the recorded rule pack/context. It does not certify the package as fully compliant.
 
 ## Database rule
 

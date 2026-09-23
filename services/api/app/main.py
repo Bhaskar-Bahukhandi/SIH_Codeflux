@@ -8,6 +8,7 @@ from app.api.geometry import router as geometry_router
 from app.api.inspections import router as inspections_router
 from app.api.ocr import router as ocr_router
 from app.api.quality import router as quality_router
+from app.api.rule_evaluations import router as rule_evaluations_router
 from app.api.system import router as system_router
 from app.core.config import get_settings
 from app.errors import AppError
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(geometry_router, prefix=settings.api_prefix)
     app.include_router(ocr_router, prefix=settings.api_prefix)
     app.include_router(declarations_router, prefix=settings.api_prefix)
+    app.include_router(rule_evaluations_router, prefix=settings.api_prefix)
     return app
 
 

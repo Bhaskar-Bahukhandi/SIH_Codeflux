@@ -8,11 +8,13 @@ on:
     paths:
       - "services/api/**"
       - "evaluation/**"
+      - "packages/rulepacks/**"
       - ".github/workflows/api-tests.yml"
   pull_request:
     paths:
       - "services/api/**"
       - "evaluation/**"
+      - "packages/rulepacks/**"
       - ".github/workflows/api-tests.yml"
 
 permissions:
