@@ -4,6 +4,7 @@ class LocalInspectionDraft {
   const LocalInspectionDraft({
     required this.id,
     required this.productName,
+    required this.officerUserId,
     required this.syncState,
     required this.createdAt,
     required this.updatedAt,
@@ -17,6 +18,7 @@ class LocalInspectionDraft {
   final String id;
   final String productName;
   final String? productIdentifier;
+  final String? officerUserId;
   final SyncState syncState;
   final String? remoteId;
   final String? lastErrorKind;
