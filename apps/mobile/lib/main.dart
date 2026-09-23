@@ -1,3 +1,5 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 
 import "app/app_dependencies.dart";
@@ -39,7 +41,7 @@ class _DisposableCodefluxRoot extends StatefulWidget {
 class _DisposableCodefluxRootState extends State<_DisposableCodefluxRoot> {
   @override
   void dispose() {
-    widget.dependencies.dispose();
+    unawaited(widget.dependencies.dispose());
     super.dispose();
   }
 
