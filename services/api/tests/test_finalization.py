@@ -585,3 +585,62 @@ def test_report_integrity_failure_is_not_served(
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "finalized_report_integrity_failed"
+
+
+def test_snapshot_integrity_failure_is_not_returned_or_reported(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result, _, _ = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+    reviewed = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+    assert reviewed.status_code == 200
+
+    finalized = finalize(client, inspection["id"], headers)
+    assert finalized.status_code == 200
+    payload = finalized.json()
+
+    from app.models.finalization import InspectionFinalization
+
+    record = db_session.get(InspectionFinalization, payload["id"])
+    record.snapshot = {
+        **record.snapshot,
+        "inspection": {
+            **record.snapshot["inspection"],
+            "product_name": "Tampered Product",
+        },
+    }
+    db_session.commit()
+
+    metadata = client.get(
+        f"/api/v1/inspections/{inspection['id']}/finalization",
+        headers=headers,
+    )
+    assert metadata.status_code == 503
+    assert metadata.json()["error"]["code"] == (
+        "finalization_snapshot_integrity_failed"
+    )
+
+    report = client.get(
+        f"/api/v1/inspections/{inspection['id']}/finalization/report",
+        headers=headers,
+    )
+    assert report.status_code == 503
+    assert report.json()["error"]["code"] == (
+        "finalization_snapshot_integrity_failed"
+    )
