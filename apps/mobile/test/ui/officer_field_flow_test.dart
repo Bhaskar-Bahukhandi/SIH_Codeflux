@@ -153,6 +153,9 @@ Future<void> pumpUntilFound(
     if (finder.evaluate().isNotEmpty) {
       return;
     }
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
   }
   throw TestFailure("Timed out waiting for expected widget.");
 }
@@ -168,8 +171,10 @@ void main() {
   testWidgets("Officer creates an inspection and opens its detail screen", (
     tester,
   ) async {
-    final harness = await FieldUiHarness.create();
-    addTearDown(harness.dispose);
+    final harness = (await tester.runAsync(FieldUiHarness.create))!;
+    addTearDown(() async {
+      await tester.runAsync(harness.dispose);
+    });
 
     debugPrint("field-ui:create:01-harness-ready");
     await tester.pumpWidget(
@@ -216,7 +221,9 @@ void main() {
     debugPrint("field-ui:create:10-workspace-returned");
     expect(find.text("Widget Product"), findsOneWidget);
 
-    final inspections = await harness.workspace.listInspections();
+    final inspections = (await tester.runAsync(
+      harness.workspace.listInspections,
+    ))!;
     debugPrint("field-ui:create:11-storage-verified");
     expect(inspections.length, 1);
     expect(inspections.single.inspection.productIdentifier, "SKU-WIDGET");
