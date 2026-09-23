@@ -11,6 +11,8 @@ def test_rule_pack_is_versioned_hashed_and_source_linked():
     assert loaded.definition.rule_pack_id == "lmpc-retail-evidence"
     assert loaded.definition.version == "2026.09-v1"
     assert loaded.definition.verified_on == date(2026, 9, 23)
+    assert loaded.definition.reviewed_by == "CODEFLUX project team"
+    assert "not legal counsel" in loaded.definition.review_type
     assert len(loaded.sha256) == 64
 
     rules = {rule.rule_id: rule for rule in loaded.definition.rules}
