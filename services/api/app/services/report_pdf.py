@@ -50,6 +50,13 @@ def _rule_lines(result: dict) -> Iterable[tuple[str, bool]]:
     yield (f"Rule ID: {result['rule_id']}", False)
     yield (f"Preliminary machine result: {result['machine_status']}", False)
     yield (f"Machine value: {_format_value(result['machine_value'])}", False)
+    yield (f"Machine explanation: {result['machine_explanation']}", False)
+    effective_from = result.get("machine_details", {}).get("effective_from")
+    if effective_from:
+        yield (f"Rule effective from: {effective_from}", False)
+    source_ids = result.get("machine_details", {}).get("source_ids") or []
+    if source_ids:
+        yield (f"Rule source IDs: {', '.join(source_ids)}", False)
     yield (
         "Officer review: "
         f"{result['officer_review']['decision']} "
@@ -68,6 +75,7 @@ def _rule_lines(result: dict) -> Iterable[tuple[str, bool]]:
             yield (
                 "Evidence: "
                 f"{item['capture_id']} | {item['view_type']} | "
+                f"{item.get('original_filename') or 'unnamed image'} | "
                 f"sha256 {item['sha256']}",
                 False,
             )
