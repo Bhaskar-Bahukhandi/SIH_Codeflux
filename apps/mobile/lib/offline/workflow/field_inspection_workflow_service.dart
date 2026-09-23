@@ -8,7 +8,7 @@ import "../models/sync_operation.dart";
 import "../persistence/local_draft_repository.dart";
 import "../persistence/sync_queue_repository.dart";
 import "../storage/local_evidence_store.dart";
-import "sync_operation_factory.dart";
+import "../sync/sync_operation_factory.dart";
 
 class LocalInspectionCreation {
   const LocalInspectionCreation({
