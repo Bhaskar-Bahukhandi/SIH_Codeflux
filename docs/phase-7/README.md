@@ -123,7 +123,9 @@ After a successful request or reconnect:
 
 ## Implemented slice: stable resource replay safety
 
-The first Phase 7 implementation slice is present on this branch:
+The current Phase 7 branch now contains two bounded implementation layers.
+
+### Server replay-safety layer
 
 - client-generated stable UUID for inspection creation;
 - client-generated stable UUID for capture upload;
@@ -131,9 +133,28 @@ The first Phase 7 implementation slice is present on this branch:
 - exact replay returns the existing resource instead of creating a duplicate;
 - mismatched reuse of the same client resource ID is rejected;
 - capture replay confirms stored evidence integrity before reporting success;
-- focused regression tests are present in `test_sync_idempotency.py`.
+- focused backend regression tests are present in `test_sync_idempotency.py`.
+
+### Mobile offline foundation
+
+- Flutter package baseline under `apps/mobile`;
+- SQLite schema for local inspections, evidence metadata and sync operations;
+- explicit local-only / queued / syncing / synced / retry-required / conflict / blocked states;
+- durable dependency-aware queue;
+- blocked/missing predecessor propagation;
+- interrupted-sync recovery after process restart;
+- bounded retry/backoff;
+- transport/API failure classification;
+- timeout outcome-unknown protection;
+- reconciliation-aware headless sync coordinator;
+- checksum-preserving local evidence storage;
+- evidence deletion gate requiring remote-durability confirmation;
+- SQLite FFI tests for queue persistence, ordering, retries, restart recovery and local draft survival;
+- a dedicated `Mobile Offline Tests` workflow.
 
 No database migration is introduced in this slice, avoiding a revision collision with PR #35.
+
+The actual HTTP/API sync executor, camera/UI integration and end-to-end offline/reconnect scenario are still pending.
 
 Execution status remains pending: the repository Actions jobs currently terminate before runner steps are allocated, and the ChatGPT container used for this pass could not resolve GitHub for a local checkout. These limitations are not application-test failures, but they also do not count as passing validation.
 
