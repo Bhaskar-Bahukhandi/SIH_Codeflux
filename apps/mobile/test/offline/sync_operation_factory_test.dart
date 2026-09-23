@@ -61,6 +61,70 @@ void main() {
     expect(capture.payload["size_bytes"], 123);
   });
 
+  test("factory preserves stable run IDs and explicit pipeline dependencies", () {
+    final factory = SyncOperationFactory();
+    const inspectionId = "31313131-3131-4313-8313-313131313131";
+    const captureId = "32323232-3232-4323-8323-323232323232";
+    const ocrRunId = "33333333-3333-4333-8333-333333333333";
+    const extractionRunId = "34343434-3434-4343-8343-343434343434";
+    const evaluationRunId = "35353535-3535-4353-8353-353535353535";
+    const captureDependency = "36363636-3636-4363-8363-363636363636";
+    const ocrOperationId = "37373737-3737-4373-8373-373737373737";
+    const extractionOperationId = "38383838-3838-4383-8383-383838383838";
+    const evaluationOperationId = "39393939-3939-4393-8393-393939393939";
+
+    final ocr = factory.runOcr(
+      inspectionId: inspectionId,
+      captureId: captureId,
+      ocrRunId: ocrRunId,
+      dependencyIds: const <String>[captureDependency],
+      operationId: ocrOperationId,
+    );
+    expect(ocr.type, SyncOperationType.runOcr);
+    expect(ocr.resourceId, ocrRunId);
+    expect(ocr.payload["id"], ocrRunId);
+    expect(ocr.payload["capture_id"], captureId);
+    expect(ocr.dependencyIds, const <String>[captureDependency]);
+
+    final extraction = factory.extractDeclarations(
+      inspectionId: inspectionId,
+      extractionRunId: extractionRunId,
+      dependencyIds: const <String>[ocrOperationId],
+      operationId: extractionOperationId,
+    );
+    expect(extraction.type, SyncOperationType.extractDeclarations);
+    expect(extraction.resourceId, extractionRunId);
+    expect(extraction.payload["id"], extractionRunId);
+    expect(extraction.dependencyIds, const <String>[ocrOperationId]);
+
+    final evaluation = factory.evaluateRules(
+      inspectionId: inspectionId,
+      evaluationRunId: evaluationRunId,
+      context: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+      dependencyIds: const <String>[extractionOperationId],
+      operationId: evaluationOperationId,
+    );
+    expect(evaluation.type, SyncOperationType.evaluateRules);
+    expect(evaluation.resourceId, evaluationRunId);
+    expect(evaluation.payload["id"], evaluationRunId);
+    expect(
+      evaluation.payload["context"],
+      const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+    );
+    expect(
+      evaluation.dependencyIds,
+      const <String>[extractionOperationId],
+    );
+  });
+
   test("review factory trims optional note and preserves stable review ID", () {
     final factory = SyncOperationFactory();
     const reviewId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
