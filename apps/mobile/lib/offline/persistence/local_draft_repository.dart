@@ -134,6 +134,18 @@ class LocalDraftRepository {
     return _evidenceFromRow(rows.single);
   }
 
+  Future<List<LocalEvidenceRecord>> listEvidenceForInspection(
+    String inspectionId,
+  ) async {
+    final rows = await offlineDatabase.database.query(
+      "local_evidence",
+      where: "inspection_id = ?",
+      whereArgs: <Object?>[inspectionId],
+      orderBy: "created_at ASC, id ASC",
+    );
+    return rows.map(_evidenceFromRow).toList(growable: false);
+  }
+
   Future<void> updateInspectionSyncState(
     String id,
     SyncState nextState, {
