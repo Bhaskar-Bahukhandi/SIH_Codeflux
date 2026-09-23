@@ -147,7 +147,7 @@ The current Phase 7 branch now contains two bounded implementation layers.
 - transport/API failure classification;
 - generalized uncertain-outcome protection for timeout, transport loss, 5xx, process interruption and unverifiable success responses;
 - reconciliation-aware headless sync coordinator;
-- replay-aware HTTP executor/reconciler for inspection creation, capture upload, OCR runs, declaration extraction, rule evaluation and Officer review creation;
+- replay-aware HTTP executor/reconciler for inspection creation, capture upload, preprocessing, geometry, OCR runs, declaration extraction, rule evaluation, submission, Officer review creation and recheck reopening;
 - local evidence SHA-256/size validation before capture upload;
 - bounded startup queue draining and interrupted-sync recovery;
 - atomic projection of queue state onto local inspection/evidence state;
@@ -160,7 +160,7 @@ The current Phase 7 branch now contains two bounded implementation layers.
 
 No database migration is introduced in this slice, avoiding a revision collision with PR #35.
 
-The camera/UI integration, authentication/token persistence, preprocessing/geometry/submission/recheck/finalization mutation adapters, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
+The camera/UI integration, authentication/token persistence, finalization/report synchronization, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
 
 The committed reconnect scenario is a deterministic sync-mechanics test using mock HTTP server state. It verifies dependency ordering, database restart persistence, response-loss reconciliation, exactly-once mutation counts in the simulated remote state, and local-evidence retention. It must not be described as real backend or field validation.
 
@@ -225,3 +225,16 @@ online auth -> connectivity loss -> local inspection + multiple images -> restar
 ## Exit decision
 
 Phase 7 may close only when the minimum offline scenario is executed successfully, replay produces no duplicate mutation, the existing online path still works, and validation evidence is recorded.
+
+
+## Full pre-finalization queue scenario
+
+A separate deterministic scenario now exercises two captures through the queued dependency graph:
+
+`inspection -> captures -> preprocessing -> geometry -> OCR -> extraction -> rule evaluation -> submission`
+
+One OCR mutation is committed in the simulated remote state and then deliberately loses its response. The client reconciles that exact OCR run ID before continuing. The scenario verifies that every queued mutation reaches `synced`, no OCR duplicate is emitted, both local originals remain present, and a second drain performs no work.
+
+Officer review and recheck have their own adapter/factory contract tests. They are not artificially inserted into the offline-before-processing scenario because real Officer review requires rule-result IDs returned by the server after evaluation.
+
+Finalization/report work remains gated on PR #35.
