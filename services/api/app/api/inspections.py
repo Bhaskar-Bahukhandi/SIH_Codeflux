@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
@@ -27,29 +28,81 @@ from app.services.officer_review_state import (
 router = APIRouter(prefix="/inspections", tags=["inspections"])
 
 
+def _matches_create_replay(
+    inspection: Inspection,
+    *,
+    officer_id: str,
+    payload: InspectionCreate,
+) -> bool:
+    return (
+        inspection.officer_id == officer_id
+        and inspection.product_name == payload.product_name
+        and inspection.product_identifier == payload.product_identifier
+    )
+
+
+def _raise_client_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client resource ID is already associated with different inspection data.",
+    )
+
+
 @router.post("", response_model=InspectionRead, status_code=status.HTTP_201_CREATED)
 def create_inspection(
     payload: InspectionCreate,
     db: Session = Depends(get_db),
     officer: User = Depends(require_officer),
 ) -> Inspection:
-    inspection = Inspection(
-        product_name=payload.product_name,
-        product_identifier=payload.product_identifier,
-        officer_id=officer.id,
-    )
+    client_id = str(payload.id) if payload.id is not None else None
+
+    if client_id is not None:
+        existing = db.get(Inspection, client_id)
+        if existing is not None:
+            if _matches_create_replay(
+                existing,
+                officer_id=officer.id,
+                payload=payload,
+            ):
+                return existing
+            _raise_client_id_conflict()
+
+    inspection_kwargs = {
+        "product_name": payload.product_name,
+        "product_identifier": payload.product_identifier,
+        "officer_id": officer.id,
+    }
+    if client_id is not None:
+        inspection_kwargs["id"] = client_id
+
+    inspection = Inspection(**inspection_kwargs)
     db.add(inspection)
-    db.flush()
 
-    record_inspection_event(
-        db,
-        inspection_id=inspection.id,
-        actor_user_id=officer.id,
-        event_type=AuditEventType.INSPECTION_CREATED,
-        details={"status": inspection.status.value},
-    )
+    try:
+        db.flush()
 
-    db.commit()
+        record_inspection_event(
+            db,
+            inspection_id=inspection.id,
+            actor_user_id=officer.id,
+            event_type=AuditEventType.INSPECTION_CREATED,
+            details={"status": inspection.status.value},
+        )
+
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if client_id is not None:
+            existing = db.get(Inspection, client_id)
+            if existing is not None and _matches_create_replay(
+                existing,
+                officer_id=officer.id,
+                payload=payload,
+            ):
+                return existing
+            _raise_client_id_conflict()
+        raise
+
     db.refresh(inspection)
     return inspection
 
