@@ -124,3 +124,13 @@ Reviews are append-only and revisioned. OCR, extraction and rule-evaluation reco
 Supervisor/Admin access remains read-only for these review records in the current prototype.
 
 A review is not a final legal approval, violation finding, penalty or notice.
+
+## Recheck reopening
+
+If the latest review state for at least one result is `recheck_required`, the owning Officer may call:
+
+- `POST /api/v1/inspections/{inspection_id}/reopen-for-recheck`
+
+The inspection returns to `draft` so evidence can be corrected or recaptured.
+
+After reopening, another submission is blocked until a new preliminary rule-evaluation run has been created after the reopen timestamp. This is an evidence-freshness workflow gate, not a legal-compliance decision.
