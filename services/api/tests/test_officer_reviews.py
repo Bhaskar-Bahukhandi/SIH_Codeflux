@@ -454,6 +454,16 @@ def test_recheck_review_can_reopen_inspection_to_draft(
     assert reopened.status_code == 200
     assert reopened.json()["status"] == "draft"
     assert reopened.json()["submitted_at"] is None
+    assert reopened.json()["reopened_for_recheck_at"] is not None
+
+    resubmit_without_fresh_evaluation = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=headers,
+    )
+    assert resubmit_without_fresh_evaluation.status_code == 409
+    assert resubmit_without_fresh_evaluation.json()["error"]["code"] == (
+        "fresh_rule_evaluation_required"
+    )
 
     editable = client.patch(
         f"/api/v1/inspections/{inspection['id']}",
@@ -537,3 +547,67 @@ def test_reopen_requires_latest_recheck_review(
     )
     assert still_rejected.status_code == 409
     assert still_rejected.json()["error"]["code"] == "recheck_review_required"
+
+
+def test_fresh_rule_evaluation_allows_resubmit_after_recheck(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    recheck = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {
+            "decision": "recheck_required",
+            "note": "Need a fresh evidence pass.",
+        },
+    )
+    assert recheck.status_code == 200
+
+    reopened = client.post(
+        f"/api/v1/inspections/{inspection['id']}/reopen-for-recheck",
+        headers=headers,
+    )
+    assert reopened.status_code == 200
+    reopened_at = datetime.fromisoformat(
+        reopened.json()["reopened_for_recheck_at"].replace("Z", "+00:00")
+    )
+
+    _, fresh_result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+        rule_id="LMPC-R6-1-C-NET-QUANTITY-EVIDENCE",
+        declaration_type="net_quantity",
+        created_at=reopened_at + timedelta(seconds=1),
+    )
+
+    resubmitted = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=headers,
+    )
+    assert resubmitted.status_code == 200
+    assert resubmitted.json()["status"] == "pending_review"
+
+    fresh_review = review(
+        client,
+        inspection["id"],
+        fresh_result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+    assert fresh_review.status_code == 200
+    assert fresh_review.json()["revision"] == 1
