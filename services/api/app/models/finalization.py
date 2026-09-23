@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -16,6 +24,10 @@ def utcnow() -> datetime:
 class InspectionFinalization(Base):
     __tablename__ = "inspection_finalizations"
     __table_args__ = (
+        CheckConstraint(
+            "report_size_bytes > 0",
+            name="ck_inspection_finalizations_report_size_positive",
+        ),
         UniqueConstraint(
             "inspection_id",
             name="uq_inspection_finalizations_inspection_id",
