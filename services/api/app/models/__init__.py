@@ -8,6 +8,7 @@ from app.models.declaration import (
     DeclarationSummary,
     DeclarationType,
 )
+from app.models.finalization import InspectionFinalization
 from app.models.geometry import CaptureGeometryAssessment, GeometryStatus
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.ocr import OcrBlock, OcrRun
@@ -41,6 +42,7 @@ __all__ = [
     "DeclarationType",
     "GeometryStatus",
     "Inspection",
+    "InspectionFinalization",
     "InspectionStatus",
     "OcrBlock",
     "OcrRun",
