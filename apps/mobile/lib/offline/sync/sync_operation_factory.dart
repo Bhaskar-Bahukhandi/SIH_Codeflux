@@ -50,6 +50,70 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation runOcr({
+    required String inspectionId,
+    required String captureId,
+    required String ocrRunId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.runOcr,
+      resourceId: ocrRunId,
+      payload: <String, Object?>{
+        "id": ocrRunId,
+        "capture_id": captureId,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
+  SyncOperation extractDeclarations({
+    required String inspectionId,
+    required String extractionRunId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.extractDeclarations,
+      resourceId: extractionRunId,
+      payload: <String, Object?>{
+        "id": extractionRunId,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
+  SyncOperation evaluateRules({
+    required String inspectionId,
+    required String evaluationRunId,
+    required Map<String, Object?> context,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.evaluateRules,
+      resourceId: evaluationRunId,
+      payload: <String, Object?>{
+        "id": evaluationRunId,
+        "context": Map<String, Object?>.unmodifiable(context),
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation createOfficerReview({
     required String inspectionId,
     required String reviewId,
