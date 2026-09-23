@@ -147,7 +147,7 @@ The current Phase 7 branch now contains two bounded implementation layers.
 - transport/API failure classification;
 - generalized uncertain-outcome protection for timeout, transport loss, 5xx, process interruption and unverifiable success responses;
 - reconciliation-aware headless sync coordinator;
-- replay-aware HTTP executor/reconciler for inspection creation, capture upload and Officer review creation;
+- replay-aware HTTP executor/reconciler for inspection creation, capture upload, OCR runs, declaration extraction, rule evaluation and Officer review creation;
 - local evidence SHA-256/size validation before capture upload;
 - bounded startup queue draining and interrupted-sync recovery;
 - atomic projection of queue state onto local inspection/evidence state;
@@ -160,7 +160,7 @@ The current Phase 7 branch now contains two bounded implementation layers.
 
 No database migration is introduced in this slice, avoiding a revision collision with PR #35.
 
-The camera/UI integration, authentication/token persistence, remaining mutation adapters, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
+The camera/UI integration, authentication/token persistence, preprocessing/geometry/submission/recheck/finalization mutation adapters, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
 
 The committed reconnect scenario is a deterministic sync-mechanics test using mock HTTP server state. It verifies dependency ordering, database restart persistence, response-loss reconciliation, exactly-once mutation counts in the simulated remote state, and local-evidence retention. It must not be described as real backend or field validation.
 
