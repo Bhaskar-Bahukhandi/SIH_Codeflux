@@ -87,6 +87,31 @@ void main() {
     expect(processing.dependencyIds, const <String>[uploadDependency]);
   });
 
+  test("geometry factory preserves assessment and corrected candidate IDs", () {
+    final factory = SyncOperationFactory();
+    const inspectionId = "61616161-6161-4616-8616-616161616161";
+    const captureId = "62626262-6262-4626-8626-626262626262";
+    const geometryId = "63636363-6363-4636-8636-636363636363";
+    const correctedId = "64646464-6464-4646-8646-646464646464";
+    const processDependency = "65656565-6565-4656-8656-656565656565";
+
+    final geometry = factory.analyzeGeometry(
+      inspectionId: inspectionId,
+      captureId: captureId,
+      geometryAssessmentId: geometryId,
+      correctedDerivativeId: correctedId,
+      dependencyIds: const <String>[processDependency],
+      operationId: "66666666-bbbb-4666-8666-666666666666",
+    );
+
+    expect(geometry.type, SyncOperationType.analyzeGeometry);
+    expect(geometry.resourceId, geometryId);
+    expect(geometry.payload["capture_id"], captureId);
+    expect(geometry.payload["geometry_assessment_id"], geometryId);
+    expect(geometry.payload["corrected_derivative_id"], correctedId);
+    expect(geometry.dependencyIds, const <String>[processDependency]);
+  });
+
   test("factory preserves stable run IDs and explicit pipeline dependencies", () {
     final factory = SyncOperationFactory();
     const inspectionId = "31313131-3131-4313-8313-313131313131";
