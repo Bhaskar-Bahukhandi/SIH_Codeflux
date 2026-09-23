@@ -238,7 +238,7 @@ void main() {
     expect(retried!.attemptCount, 2);
   });
 
-  test("in-flight operation survives restart as retry_required", () async {
+  test("interrupted sync is parked until remote outcome is reconciled", () async {
     final now = DateTime.utc(2026, 9, 23, 14);
     await queue.enqueue(createOperation(now));
     final claimed = await queue.claimNextReady(now);
@@ -249,6 +249,7 @@ void main() {
       databasePath,
       factory: databaseFactoryFfi,
     );
+    drafts = LocalDraftRepository(offlineDatabase);
     queue = SyncQueueRepository(offlineDatabase);
 
     final recoveryTime = now.add(const Duration(minutes: 1));
@@ -259,12 +260,23 @@ void main() {
 
     final recovered = await queue.getById(createOperationId);
     expect(recovered!.state, SyncState.retryRequired);
-    expect(recovered.lastErrorKind, "process_interrupted");
-    expect(recovered.nextAttemptAt, recoveryTime);
+    expect(
+      recovered.lastErrorKind,
+      "process_interrupted_outcome_unknown",
+    );
+    expect(recovered.nextAttemptAt, isNull);
+    expect(
+      (await drafts.getInspection(inspectionId))!.syncState,
+      SyncState.retryRequired,
+    );
 
-    final reclaimed = await queue.claimNextReady(recoveryTime);
-    expect(reclaimed!.state, SyncState.syncing);
-    expect(reclaimed.attemptCount, 2);
+    final parked = await queue.listReconciliationRequired();
+    expect(parked.map((operation) => operation.id), contains(createOperationId));
+
+    final blindReplay = await queue.claimNextReady(
+      recoveryTime.add(const Duration(hours: 1)),
+    );
+    expect(blindReplay, isNull);
   });
 
   test("local enqueue replay is idempotent but changed payload is rejected", () async {
