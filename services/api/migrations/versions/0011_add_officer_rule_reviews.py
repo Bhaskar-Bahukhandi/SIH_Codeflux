@@ -17,6 +17,15 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    with op.batch_alter_table("inspections") as batch_op:
+        batch_op.add_column(
+            sa.Column(
+                "reopened_for_recheck_at",
+                sa.DateTime(timezone=True),
+                nullable=True,
+            )
+        )
+
     op.create_table(
         "officer_rule_reviews",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -138,3 +147,6 @@ def downgrade() -> None:
         table_name="officer_rule_reviews",
     )
     op.drop_table("officer_rule_reviews")
+
+    with op.batch_alter_table("inspections") as batch_op:
+        batch_op.drop_column("reopened_for_recheck_at")
