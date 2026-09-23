@@ -191,13 +191,12 @@ void main() {
     await pumpUntilFound(tester, find.text("Widget Officer"));
     debugPrint("field-ui:create:03-workspace-ready");
 
-    expect(
-      find.text(
-        "No inspections on this device yet.\n"
-        "Create one to start capturing package evidence.",
-      ),
-      findsOneWidget,
+    final emptyState = find.text(
+      "No inspections on this device yet.\n"
+      "Create one to start capturing package evidence.",
     );
+    await pumpUntilFound(tester, emptyState);
+    expect(emptyState, findsOneWidget);
 
     await tester.tap(find.text("New inspection"));
     debugPrint("field-ui:create:04-new-inspection-tapped");
