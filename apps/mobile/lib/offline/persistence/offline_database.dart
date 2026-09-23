@@ -9,7 +9,7 @@ import "package:sqflite_common/sqlite_api.dart"
 class OfflineDatabase {
   OfflineDatabase._(this.database);
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String databaseFileName = "codeflux_offline.sqlite3";
 
   final Database database;
@@ -119,6 +119,23 @@ class OfflineDatabase {
       "CREATE INDEX ix_sync_operations_inspection "
       "ON sync_operations(inspection_id, created_at)",
     );
+
+    await db.execute("""
+      CREATE TABLE pending_capture_intents (
+        id TEXT PRIMARY KEY,
+        inspection_id TEXT NOT NULL,
+        view_type TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (inspection_id)
+          REFERENCES local_inspections(id)
+          ON DELETE RESTRICT
+      )
+    """);
+    await db.execute(
+      "CREATE INDEX ix_pending_capture_intents_created "
+      "ON pending_capture_intents(created_at DESC)",
+    );
   }
 
   static Future<void> _upgradeSchema(
@@ -130,6 +147,24 @@ class OfflineDatabase {
       await db.execute(
         "ALTER TABLE local_inspections "
         "ADD COLUMN officer_user_id TEXT",
+      );
+    }
+    if (oldVersion < 3 && newVersion >= 3) {
+      await db.execute("""
+        CREATE TABLE pending_capture_intents (
+          id TEXT PRIMARY KEY,
+          inspection_id TEXT NOT NULL,
+          view_type TEXT NOT NULL,
+          source TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (inspection_id)
+            REFERENCES local_inspections(id)
+            ON DELETE RESTRICT
+        )
+      """);
+      await db.execute(
+        "CREATE INDEX ix_pending_capture_intents_created "
+        "ON pending_capture_intents(created_at DESC)",
       );
     }
   }
