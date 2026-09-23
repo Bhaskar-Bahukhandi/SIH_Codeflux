@@ -60,6 +60,7 @@ void main() {
     final drafts = LocalDraftRepository(offlineDatabase);
     await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Coordinator Product",
     );
     queue = SyncQueueRepository(offlineDatabase);
