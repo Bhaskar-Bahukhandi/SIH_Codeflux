@@ -73,6 +73,27 @@ class LocalDraftRepository {
     return _inspectionFromRow(rows.single);
   }
 
+  Future<List<LocalInspectionDraft>> listInspectionsForOfficer(
+    String officerUserId,
+  ) async {
+    final normalizedOfficerId = officerUserId.trim();
+    if (normalizedOfficerId.isEmpty) {
+      throw ArgumentError.value(
+        officerUserId,
+        "officerUserId",
+        "Must not be blank.",
+      );
+    }
+
+    final rows = await offlineDatabase.database.query(
+      "local_inspections",
+      where: "officer_user_id = ?",
+      whereArgs: <Object?>[normalizedOfficerId],
+      orderBy: "updated_at DESC, created_at DESC, id ASC",
+    );
+    return rows.map(_inspectionFromRow).toList(growable: false);
+  }
+
   Future<LocalEvidenceRecord> registerEvidence({
     required String id,
     required String inspectionId,
