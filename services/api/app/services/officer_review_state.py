@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -47,3 +49,24 @@ def latest_officer_reviews_by_result(
     for review in db.scalars(statement).all():
         latest[review.rule_evaluation_result_id] = review
     return latest
+
+
+def has_rule_evaluation_after(
+    db: Session,
+    *,
+    inspection_id: str,
+    after: datetime,
+) -> bool:
+    run_id = db.scalar(
+        select(RuleEvaluationRun.id)
+        .where(
+            RuleEvaluationRun.inspection_id == inspection_id,
+            RuleEvaluationRun.created_at > after,
+        )
+        .order_by(
+            RuleEvaluationRun.created_at.desc(),
+            RuleEvaluationRun.id.desc(),
+        )
+        .limit(1)
+    )
+    return run_id is not None
