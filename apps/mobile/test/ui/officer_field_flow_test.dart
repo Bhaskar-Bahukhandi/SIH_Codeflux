@@ -171,6 +171,7 @@ void main() {
     final harness = await FieldUiHarness.create();
     addTearDown(harness.dispose);
 
+    debugPrint("field-ui:create:01-harness-ready");
     await tester.pumpWidget(
       MaterialApp(
         home: WorkspaceScreen(
@@ -181,7 +182,9 @@ void main() {
         ),
       ),
     );
+    debugPrint("field-ui:create:02-widget-mounted");
     await pumpUntilFound(tester, find.text("Widget Officer"));
+    debugPrint("field-ui:create:03-workspace-ready");
 
     expect(
       find.text(
@@ -192,25 +195,34 @@ void main() {
     );
 
     await tester.tap(find.text("New inspection"));
+    debugPrint("field-ui:create:04-new-inspection-tapped");
     await pumpUntilFound(tester, find.text("New inspection"));
+    debugPrint("field-ui:create:05-dialog-ready");
 
     final formFields = find.byType(TextFormField);
     await tester.enterText(formFields.at(0), "Widget Product");
     await tester.enterText(formFields.at(1), "SKU-WIDGET");
+    debugPrint("field-ui:create:06-form-filled");
     await tester.tap(find.widgetWithText(FilledButton, "Create"));
+    debugPrint("field-ui:create:07-create-tapped");
 
     await pumpUntilFound(tester, find.text("Add image"));
+    debugPrint("field-ui:create:08-detail-ready");
     expect(find.text("Widget Product"), findsWidgets);
 
     await tester.pageBack();
+    debugPrint("field-ui:create:09-back-requested");
     await pumpUntilFound(tester, find.text("My inspections"));
+    debugPrint("field-ui:create:10-workspace-returned");
     expect(find.text("Widget Product"), findsOneWidget);
 
     final inspections = await harness.workspace.listInspections();
+    debugPrint("field-ui:create:11-storage-verified");
     expect(inspections.length, 1);
     expect(inspections.single.inspection.productIdentifier, "SKU-WIDGET");
 
     await unmountApp(tester);
+    debugPrint("field-ui:create:12-unmounted");
   });
 
   testWidgets("Officer captures package evidence and queues review", (
