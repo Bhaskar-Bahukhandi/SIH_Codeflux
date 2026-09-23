@@ -281,6 +281,78 @@ void main() {
     );
   });
 
+  test("preprocessing composite executes and reconciles exact output IDs", () async {
+    const derivativeId = "57575757-5757-4575-8575-575757575757";
+    const qualityId = "58585858-5858-4585-8585-585858585858";
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/process",
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["derivative_id"], derivativeId);
+        expect(body["quality_assessment_id"], qualityId);
+      } else {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/process-runs/" +
+              qualityId,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "derivative": <String, Object?>{
+            "id": derivativeId,
+            "capture_id": captureId,
+          },
+          "quality": <String, Object?>{
+            "id": qualityId,
+            "capture_id": captureId,
+            "derivative_id": derivativeId,
+          },
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-process",
+      inspectionId: inspectionId,
+      type: SyncOperationType.processCapture,
+      resourceId: qualityId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+        "derivative_id": derivativeId,
+        "quality_assessment_id": qualityId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      qualityId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+  });
+
   test("OCR stable run executes and reconciles by exact run ID", () async {
     const ocrRunId = "41414141-4141-4414-8414-414141414141";
     var postCount = 0;
