@@ -270,7 +270,12 @@ void main() {
       filename: "front.png",
     );
 
-    await tester.tap(find.text("Add image"));
+    final addImageButton = find.ancestor(
+      of: find.text("Add image"),
+      matching: find.byType(FloatingActionButton),
+    );
+    expect(addImageButton, findsOneWidget);
+    await tester.tap(addImageButton);
     await pumpUntilFound(tester, find.text("Which side are you capturing?"));
     await tester.tap(find.text("Front"));
     await pumpUntilFound(tester, find.text("Take photo"));
@@ -286,7 +291,13 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text("Queue preliminary review"));
+    final queueReviewButton = find.widgetWithText(
+      FilledButton,
+      "Queue preliminary review",
+    );
+    await tester.ensureVisible(queueReviewButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(queueReviewButton);
     await pumpUntilFound(tester, find.text("Applicability context"));
     await tester.tap(
       find.widgetWithText(FilledButton, "Queue for review"),
