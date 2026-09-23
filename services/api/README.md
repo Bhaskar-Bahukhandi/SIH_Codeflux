@@ -2,7 +2,7 @@
 
 Technology: Python + FastAPI.
 
-The API contains the data/access, capture/preprocessing, OCR evidence, declaration-extraction and first versioned preliminary rule-evaluation foundations.
+The API contains the data/access, capture/preprocessing, OCR evidence, declaration-extraction, preliminary rule-evaluation and Officer verification foundations.
 
 ## Current capabilities
 
@@ -102,3 +102,25 @@ A pass means the current declaration-evidence check passed under the recorded ru
 ## Database rule
 
 PostgreSQL remains the production target. SQLite in tests is isolated test infrastructure. Schema changes use Alembic migrations.
+
+
+## Officer rule review
+
+After an inspection is submitted to `pending_review`, its owning Officer may review results from the latest preliminary rule-evaluation run.
+
+Endpoints:
+
+- `POST /api/v1/inspections/{inspection_id}/rule-reviews/{rule_evaluation_result_id}`
+- `GET /api/v1/inspections/{inspection_id}/rule-reviews`
+
+Review decisions:
+
+- `accepted` — Officer accepts the current preliminary result for the workflow stage;
+- `corrected` — Officer stores a structured corrected value plus a required note;
+- `recheck_required` — Officer requires new/reprocessed evidence and records why.
+
+Reviews are append-only and revisioned. OCR, extraction and rule-evaluation records remain immutable.
+
+Supervisor/Admin access remains read-only for these review records in the current prototype.
+
+A review is not a final legal approval, violation finding, penalty or notice.
