@@ -26,6 +26,7 @@ class AuditEventType(str, Enum):
     RULE_EVALUATION_COMPLETED = "rule_evaluation.completed"
     OFFICER_RULE_REVIEW_RECORDED = "officer_rule_review.recorded"
     INSPECTION_REOPENED_FOR_RECHECK = "inspection.reopened_for_recheck"
+    INSPECTION_FINALIZED = "inspection.finalized"
 
 
 class AuditEvent(Base):
