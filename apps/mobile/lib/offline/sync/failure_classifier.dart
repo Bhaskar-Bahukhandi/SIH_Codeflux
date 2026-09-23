@@ -3,6 +3,7 @@ import "../models/sync_state.dart";
 enum SyncFailureKind {
   transportUnavailable("transport_unavailable"),
   timeoutOutcomeUnknown("timeout_outcome_unknown"),
+  responseUnverifiable("response_unverifiable"),
   authenticationExpired("authentication_expired"),
   serverRetriable("server_retriable"),
   validationRejected("validation_rejected"),
@@ -59,6 +60,7 @@ class SyncFailureClassifier {
     String? apiCode,
     bool transportUnavailable = false,
     bool timedOut = false,
+    bool outcomeUnknown = false,
   }) {
     if (transportUnavailable) {
       return const SyncFailureDecision(
@@ -72,6 +74,15 @@ class SyncFailureClassifier {
     if (timedOut) {
       return const SyncFailureDecision(
         kind: SyncFailureKind.timeoutOutcomeUnknown,
+        targetState: SyncState.retryRequired,
+        autoRetry: false,
+        requiresReconciliation: true,
+      );
+    }
+
+    if (outcomeUnknown) {
+      return const SyncFailureDecision(
+        kind: SyncFailureKind.responseUnverifiable,
         targetState: SyncState.retryRequired,
         autoRetry: false,
         requiresReconciliation: true,
