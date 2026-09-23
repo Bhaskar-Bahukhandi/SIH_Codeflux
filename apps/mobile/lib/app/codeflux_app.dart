@@ -1,7 +1,6 @@
 import "package:flutter/material.dart";
 
 import "../auth/officer_session_store.dart";
-import "../capture/field_capture_coordinator.dart";
 import "app_dependencies.dart";
 import "../ui/login_screen.dart";
 import "../ui/workspace_screen.dart";
