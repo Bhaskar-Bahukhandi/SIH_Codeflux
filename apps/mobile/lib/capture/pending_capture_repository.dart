@@ -1,6 +1,6 @@
 import "package:uuid/uuid.dart";
 
-import "../persistence/offline_database.dart";
+import "../offline/persistence/offline_database.dart";
 
 class PendingCaptureIntent {
   const PendingCaptureIntent({
