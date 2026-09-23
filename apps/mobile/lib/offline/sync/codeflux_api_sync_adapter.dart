@@ -42,8 +42,12 @@ class CodefluxApiSyncAdapter
         _executeDeclarationExtraction(operation),
       SyncOperationType.evaluateRules =>
         _executeRuleEvaluation(operation),
+      SyncOperationType.submitInspection =>
+        _executeSubmitInspection(operation),
       SyncOperationType.createOfficerReview =>
         _executeOfficerReview(operation),
+      SyncOperationType.reopenForRecheck =>
+        _executeReopenForRecheck(operation),
       _ => throw UnsupportedError(
           "No API sync executor is implemented for " +
               operation.type.dbValue +
@@ -69,8 +73,12 @@ class CodefluxApiSyncAdapter
         _reconcileDeclarationExtraction(operation),
       SyncOperationType.evaluateRules =>
         _reconcileRuleEvaluation(operation),
+      SyncOperationType.submitInspection =>
+        _reconcileSubmitInspection(operation),
       SyncOperationType.createOfficerReview =>
         _reconcileOfficerReview(operation),
+      SyncOperationType.reopenForRecheck =>
+        _reconcileReopenForRecheck(operation),
       _ => Future<ReconciliationResult>.value(
           const ReconciliationResult.unresolved(),
         ),
@@ -475,6 +483,40 @@ class CodefluxApiSyncAdapter
     return SyncExecutionSuccess(remoteResourceId: runId);
   }
 
+  Future<SyncExecutionSuccess> _executeSubmitInspection(
+    SyncOperation operation,
+  ) async {
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/submit",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection submission",
+    );
+    if (decoded["id"]?.toString() != operation.inspectionId ||
+        decoded["status"]?.toString() != "pending_review" ||
+        decoded["submitted_at"] == null) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server submission response does not confirm pending review.",
+      );
+    }
+
+    return SyncExecutionSuccess(
+      remoteResourceId: operation.inspectionId,
+    );
+  }
+
   Future<SyncExecutionSuccess> _executeOfficerReview(
     SyncOperation operation,
   ) async {
@@ -824,6 +866,49 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(remoteResourceId: runId);
   }
 
+  Future<ReconciliationResult> _reconcileSubmitInspection(
+    SyncOperation operation,
+  ) async {
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection submission",
+    );
+    if (remote["id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    final status = remote["status"]?.toString();
+    if (status == "pending_review" || status == "finalized") {
+      return ReconciliationResult.applied(
+        remoteResourceId: operation.inspectionId,
+      );
+    }
+
+    if (status == "draft") {
+      final expectedReopened =
+          operation.payload["reopened_for_recheck_at"]?.toString();
+      final remoteReopened =
+          remote["reopened_for_recheck_at"]?.toString();
+      if (remoteReopened == expectedReopened) {
+        return const ReconciliationResult.notApplied();
+      }
+      return ReconciliationResult.applied(
+        remoteResourceId: operation.inspectionId,
+      );
+    }
+
+    return const ReconciliationResult.unresolved();
+  }
+
   Future<ReconciliationResult> _reconcileOfficerReview(
     SyncOperation operation,
   ) async {
@@ -892,6 +977,82 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(
       remoteResourceId: operation.resourceId,
     );
+  }
+
+  Future<SyncExecutionSuccess> _executeReopenForRecheck(
+    SyncOperation operation,
+  ) async {
+    final previousReopened =
+        operation.payload["previous_reopened_for_recheck_at"]?.toString();
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/reopen-for-recheck",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection recheck reopening",
+    );
+    final reopened = decoded["reopened_for_recheck_at"]?.toString();
+    if (decoded["id"]?.toString() != operation.inspectionId ||
+        decoded["status"]?.toString() != "draft" ||
+        reopened == null ||
+        reopened == previousReopened) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server recheck response does not confirm a new reopen transition.",
+      );
+    }
+
+    return SyncExecutionSuccess(
+      remoteResourceId: operation.inspectionId,
+    );
+  }
+
+  Future<ReconciliationResult> _reconcileReopenForRecheck(
+    SyncOperation operation,
+  ) async {
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection recheck reopening",
+    );
+    if (remote["id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    final previousReopened =
+        operation.payload["previous_reopened_for_recheck_at"]?.toString();
+    final remoteReopened =
+        remote["reopened_for_recheck_at"]?.toString();
+    if (remoteReopened != null && remoteReopened != previousReopened) {
+      return ReconciliationResult.applied(
+        remoteResourceId: operation.inspectionId,
+      );
+    }
+
+    final status = remote["status"]?.toString();
+    if (status == "pending_review" || status == "draft") {
+      return const ReconciliationResult.notApplied();
+    }
+
+    return const ReconciliationResult.unresolved();
   }
 
   Future<http.Response> _get(String path) async {
