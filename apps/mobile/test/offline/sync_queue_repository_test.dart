@@ -44,6 +44,16 @@ void main() {
       productName: "Offline Test Product",
       now: DateTime.utc(2026, 9, 23, 10),
     );
+    await drafts.registerEvidence(
+      id: captureId,
+      inspectionId: inspectionId,
+      viewType: "front",
+      localPath: "/test/front.jpg",
+      sha256:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      sizeBytes: 123,
+      now: DateTime.utc(2026, 9, 23, 10, 0, 1),
+    );
   });
 
   tearDown(() async {
@@ -86,24 +96,44 @@ void main() {
   test("dependency order prevents capture sync before inspection", () async {
     final now = DateTime.utc(2026, 9, 23, 10, 30);
     await queue.enqueue(createOperation(now));
+    expect(
+      (await drafts.getInspection(inspectionId))!.syncState,
+      SyncState.queued,
+    );
+
     await queue.enqueue(captureOperation(now));
+    expect(
+      (await drafts.getEvidence(captureId))!.syncState,
+      SyncState.queued,
+    );
 
     final first = await queue.claimNextReady(now.add(const Duration(seconds: 2)));
     expect(first, isNotNull);
     expect(first!.id, createOperationId);
     expect(first.state, SyncState.syncing);
     expect(first.attemptCount, 1);
+    expect(
+      (await drafts.getInspection(inspectionId))!.syncState,
+      SyncState.syncing,
+    );
 
     await queue.markSynced(
       createOperationId,
       remoteResourceId: inspectionId,
       now: now.add(const Duration(seconds: 3)),
     );
+    final syncedInspection = await drafts.getInspection(inspectionId);
+    expect(syncedInspection!.syncState, SyncState.synced);
+    expect(syncedInspection.remoteId, inspectionId);
 
     final second = await queue.claimNextReady(now.add(const Duration(seconds: 4)));
     expect(second, isNotNull);
     expect(second!.id, captureOperationId);
     expect(second.state, SyncState.syncing);
+    expect(
+      (await drafts.getEvidence(captureId))!.syncState,
+      SyncState.syncing,
+    );
   });
 
   test("blocked predecessor explicitly blocks dependent work", () async {
@@ -131,6 +161,14 @@ void main() {
     final dependent = await queue.getById(captureOperationId);
     expect(dependent!.state, SyncState.blocked);
     expect(dependent.lastErrorKind, "dependency_blocked");
+    expect(
+      (await drafts.getInspection(inspectionId))!.syncState,
+      SyncState.conflict,
+    );
+    expect(
+      (await drafts.getEvidence(captureId))!.syncState,
+      SyncState.blocked,
+    );
   });
 
   test("timeout outcome requires reconciliation before sync completion", () async {
