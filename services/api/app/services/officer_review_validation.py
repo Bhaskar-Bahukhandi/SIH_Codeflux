@@ -4,6 +4,15 @@ from decimal import Decimal, InvalidOperation
 
 from app.errors import unprocessable
 
+_MAX_DECIMAL_ADJUSTED_EXPONENT = 18
+
+
+def _invalid_decimal(field_name: str):
+    return unprocessable(
+        "invalid_corrected_value",
+        f"{field_name} must be a positive decimal value within the supported numeric range.",
+    )
+
 
 def _require_exact_keys(value: dict, expected: set[str]) -> None:
     if set(value) != expected:
@@ -15,24 +24,20 @@ def _require_exact_keys(value: dict, expected: set[str]) -> None:
 
 def _positive_decimal(raw: object, *, field_name: str) -> Decimal:
     if isinstance(raw, bool):
-        raise unprocessable(
-            "invalid_corrected_value",
-            f"{field_name} must be a positive decimal value.",
-        )
+        raise _invalid_decimal(field_name)
 
     try:
         parsed = Decimal(str(raw))
     except (InvalidOperation, ValueError):
-        raise unprocessable(
-            "invalid_corrected_value",
-            f"{field_name} must be a positive decimal value.",
-        )
+        raise _invalid_decimal(field_name)
 
-    if not parsed.is_finite() or parsed <= 0:
-        raise unprocessable(
-            "invalid_corrected_value",
-            f"{field_name} must be a positive decimal value.",
-        )
+    if (
+        not parsed.is_finite()
+        or parsed <= 0
+        or abs(parsed.adjusted()) > _MAX_DECIMAL_ADJUSTED_EXPONENT
+    ):
+        raise _invalid_decimal(field_name)
+
     return parsed
 
 
@@ -51,9 +56,14 @@ def normalize_officer_corrected_value(
             )
 
         amount = _positive_decimal(value["amount"], field_name="amount")
+        try:
+            normalized_amount = amount.quantize(Decimal("0.01"))
+        except InvalidOperation:
+            raise _invalid_decimal("amount")
+
         return {
             "currency": "INR",
-            "amount": format(amount.quantize(Decimal("0.01")), ".2f"),
+            "amount": format(normalized_amount, ".2f"),
         }
 
     if declaration_type == "net_quantity":
