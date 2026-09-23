@@ -238,13 +238,17 @@ void main() {
   testWidgets("Officer captures package evidence and queues review", (
     tester,
   ) async {
-    final harness = await FieldUiHarness.create();
-    addTearDown(harness.dispose);
+    final harness = (await tester.runAsync(FieldUiHarness.create))!;
+    addTearDown(() async {
+      await tester.runAsync(harness.dispose);
+    });
 
-    final created = await harness.workspace.createInspection(
-      productName: "Widget Product",
-      productIdentifier: "SKU-WIDGET",
-    );
+    final created = (await tester.runAsync(
+      () => harness.workspace.createInspection(
+        productName: "Widget Product",
+        productIdentifier: "SKU-WIDGET",
+      ),
+    ))!;
     final inspectionId = created.inspection.id;
 
     await tester.pumpWidget(
@@ -292,14 +296,14 @@ void main() {
       find.textContaining("have been queued"),
     );
 
-    expect(
-      (await harness.workspace.listEvidence(inspectionId)).length,
-      1,
-    );
-    expect(
-      (await harness.queue.listForInspection(inspectionId)).length,
-      8,
-    );
+    final evidence = (await tester.runAsync(
+      () => harness.workspace.listEvidence(inspectionId),
+    ))!;
+    final operations = (await tester.runAsync(
+      () => harness.queue.listForInspection(inspectionId),
+    ))!;
+    expect(evidence.length, 1);
+    expect(operations.length, 8);
     expect(
       find.textContaining("have been queued"),
       findsOneWidget,
