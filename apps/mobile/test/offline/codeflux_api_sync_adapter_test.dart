@@ -353,6 +353,119 @@ void main() {
     );
   });
 
+  test("geometry composite executes and reconciles corrected derivative", () async {
+    const geometryId = "67676767-6767-4676-8676-676767676767";
+    const correctedId = "68686868-6868-4686-8686-686868686868";
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/geometry/analyze",
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["geometry_assessment_id"], geometryId);
+        expect(body["corrected_derivative_id"], correctedId);
+      } else {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/geometry/runs/" +
+              geometryId,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "geometry": <String, Object?>{
+            "id": geometryId,
+            "capture_id": captureId,
+            "corrected_derivative_id": correctedId,
+          },
+          "corrected_derivative": <String, Object?>{
+            "id": correctedId,
+            "capture_id": captureId,
+          },
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-geometry",
+      inspectionId: inspectionId,
+      type: SyncOperationType.analyzeGeometry,
+      resourceId: geometryId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+        "geometry_assessment_id": geometryId,
+        "corrected_derivative_id": correctedId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      geometryId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+  });
+
+  test("geometry no-correction response leaves candidate derivative unused", () async {
+    const geometryId = "69696969-6969-4696-8696-696969696969";
+    const correctedCandidateId =
+        "70707070-7070-4707-8707-707070707070";
+
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "geometry": <String, Object?>{
+            "id": geometryId,
+            "capture_id": captureId,
+            "corrected_derivative_id": null,
+          },
+          "corrected_derivative": null,
+        }),
+        200,
+      );
+    });
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-geometry-no-correction",
+      inspectionId: inspectionId,
+      type: SyncOperationType.analyzeGeometry,
+      resourceId: geometryId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+        "geometry_assessment_id": geometryId,
+        "corrected_derivative_id": correctedCandidateId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      geometryId,
+    );
+  });
+
   test("OCR stable run executes and reconciles by exact run ID", () async {
     const ocrRunId = "41414141-4141-4414-8414-414141414141";
     var postCount = 0;
