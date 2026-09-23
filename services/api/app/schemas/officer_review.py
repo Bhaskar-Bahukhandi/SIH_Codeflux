@@ -13,7 +13,7 @@ class OfficerRuleReviewCreate(BaseModel):
     @model_validator(mode="after")
     def validate_decision_payload(self) -> "OfficerRuleReviewCreate":
         note = self.note.strip() if self.note else None
-        self.note = note
+        self.note = note or None
 
         if self.decision is OfficerReviewDecision.CORRECTED:
             if self.corrected_value is None:
