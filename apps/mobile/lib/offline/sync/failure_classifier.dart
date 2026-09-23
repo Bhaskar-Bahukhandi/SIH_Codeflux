@@ -50,6 +50,8 @@ class SyncFailureClassifier {
     "finalized_report_integrity_failed",
     "local_evidence_integrity_failed",
     "local_evidence_missing",
+    "local_evidence_unavailable",
+    "remote_evidence_integrity_mismatch",
   };
 
   static SyncFailureDecision classify({
@@ -94,7 +96,8 @@ class SyncFailureClassifier {
       );
     }
 
-    if (apiCode == "client_resource_id_conflict") {
+    if (apiCode == "client_resource_id_conflict" ||
+        apiCode == "remote_identity_mismatch") {
       return const SyncFailureDecision(
         kind: SyncFailureKind.identityConflict,
         targetState: SyncState.conflict,
