@@ -74,6 +74,30 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation analyzeGeometry({
+    required String inspectionId,
+    required String captureId,
+    required String geometryAssessmentId,
+    required String correctedDerivativeId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.analyzeGeometry,
+      resourceId: geometryAssessmentId,
+      payload: <String, Object?>{
+        "capture_id": captureId,
+        "geometry_assessment_id": geometryAssessmentId,
+        "corrected_derivative_id": correctedDerivativeId,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation runOcr({
     required String inspectionId,
     required String captureId,
