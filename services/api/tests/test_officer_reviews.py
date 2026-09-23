@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 from app.models.audit import AuditEvent, AuditEventType
+from app.models.capture import Capture, CaptureViewType
 from app.models.declaration import DeclarationExtractionRun
 from app.models.rule_evaluation import (
     RuleEvaluationResult,
@@ -674,3 +675,119 @@ def test_corrected_values_reject_nonfinite_or_extreme_numbers(
         )
         assert response.status_code == 422
         assert response.json()["error"]["code"] == "invalid_corrected_value"
+
+
+def test_officer_review_rejects_rule_evaluation_staled_by_new_capture(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+
+    db_session.add(
+        Capture(
+            inspection_id=inspection["id"],
+            uploader_user_id=officer.id,
+            view_type=CaptureViewType.DETAIL,
+            original_filename="new-evidence.jpg",
+            storage_key="tests/stale-review/new-evidence.jpg",
+            sha256="1" * 64,
+            mime_type="image/jpeg",
+            size_bytes=128,
+            width_px=32,
+            height_px=32,
+        )
+    )
+    db_session.commit()
+
+    submit(client, inspection["id"], headers)
+
+    response = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "current_rule_evaluation_required"
+
+
+def test_recheck_resubmit_rejects_evaluation_staled_after_it_was_run(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    recheck = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {
+            "decision": "recheck_required",
+            "note": "Need a clearer image.",
+        },
+    )
+    assert recheck.status_code == 200
+
+    reopened = client.post(
+        f"/api/v1/inspections/{inspection['id']}/reopen-for-recheck",
+        headers=headers,
+    )
+    assert reopened.status_code == 200
+    reopened_at = datetime.fromisoformat(
+        reopened.json()["reopened_for_recheck_at"].replace("Z", "+00:00")
+    )
+
+    seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+        rule_id="LMPC-R6-1-C-NET-QUANTITY-EVIDENCE",
+        declaration_type="net_quantity",
+        created_at=reopened_at + timedelta(seconds=1),
+    )
+
+    db_session.add(
+        Capture(
+            inspection_id=inspection["id"],
+            uploader_user_id=officer.id,
+            view_type=CaptureViewType.DETAIL,
+            original_filename="post-evaluation-evidence.jpg",
+            storage_key="tests/stale-resubmit/post-evaluation-evidence.jpg",
+            sha256="2" * 64,
+            mime_type="image/jpeg",
+            size_bytes=128,
+            width_px=32,
+            height_px=32,
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "fresh_rule_evaluation_required"
