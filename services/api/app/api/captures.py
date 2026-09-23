@@ -2,17 +2,23 @@ from __future__ import annotations
 
 from hashlib import sha256
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
 from app.core.config import Settings, get_settings
 from app.db import get_db
-from app.errors import not_found, payload_too_large, service_unavailable
+from app.errors import (
+    conflict,
+    not_found,
+    payload_too_large,
+    service_unavailable,
+)
 from app.models.audit import AuditEventType
 from app.models.capture import Capture, CaptureViewType
 from app.models.user import User
@@ -29,10 +35,61 @@ router = APIRouter(
 )
 
 
+def _matches_capture_replay(
+    capture: Capture,
+    *,
+    inspection_id: str,
+    officer_id: str,
+    view_type: CaptureViewType,
+    digest: str,
+    mime_type: str,
+    size_bytes: int,
+    width_px: int,
+    height_px: int,
+) -> bool:
+    return (
+        capture.inspection_id == inspection_id
+        and capture.uploader_user_id == officer_id
+        and capture.view_type is view_type
+        and capture.sha256 == digest
+        and capture.mime_type == mime_type
+        and capture.size_bytes == size_bytes
+        and capture.width_px == width_px
+        and capture.height_px == height_px
+    )
+
+
+def _verify_replayed_capture_storage(
+    storage: LocalMediaStorage,
+    capture: Capture,
+) -> None:
+    path = storage.path_for(capture.storage_key)
+    if not path.is_file():
+        raise service_unavailable(
+            "capture_storage_unavailable",
+            "The existing capture record is present but its evidence file is unavailable.",
+        )
+
+    stored_bytes = path.read_bytes()
+    if len(stored_bytes) != capture.size_bytes or sha256(stored_bytes).hexdigest() != capture.sha256:
+        raise service_unavailable(
+            "capture_storage_integrity_failed",
+            "The existing capture evidence failed its integrity check.",
+        )
+
+
+def _raise_client_capture_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client capture ID is already associated with different evidence.",
+    )
+
+
 @router.post("", response_model=CaptureRead, status_code=status.HTTP_201_CREATED)
 async def upload_capture(
     inspection_id: str,
     view_type: CaptureViewType = Form(...),
+    capture_id: UUID | None = Form(default=None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     officer: User = Depends(require_officer),
@@ -54,18 +111,41 @@ async def upload_capture(
         max_pixels=settings.max_capture_pixels,
     )
 
-    capture_id = str(uuid4())
-    storage_key = (
-        f"inspections/{inspection.id}/captures/"
-        f"{capture_id}{verified.extension}"
-    )
+    stable_capture_id = str(capture_id) if capture_id is not None else str(uuid4())
     safe_filename = Path(file.filename).name[:255] if file.filename else None
     digest = sha256(data).hexdigest()
+
+    if capture_id is not None:
+        existing = db.get(Capture, stable_capture_id)
+        if existing is not None:
+            if not _matches_capture_replay(
+                existing,
+                inspection_id=inspection.id,
+                officer_id=officer.id,
+                view_type=view_type,
+                digest=digest,
+                mime_type=verified.mime_type,
+                size_bytes=len(data),
+                width_px=verified.width_px,
+                height_px=verified.height_px,
+            ):
+                _raise_client_capture_id_conflict()
+
+            _verify_replayed_capture_storage(storage, existing)
+            return existing
+
+    storage_object_id = (
+        stable_capture_id if capture_id is None else str(uuid4())
+    )
+    storage_key = (
+        f"inspections/{inspection.id}/captures/"
+        f"{storage_object_id}{verified.extension}"
+    )
 
     storage.save(storage_key, data)
 
     capture = Capture(
-        id=capture_id,
+        id=stable_capture_id,
         inspection_id=inspection.id,
         uploader_user_id=officer.id,
         view_type=view_type,
@@ -93,6 +173,31 @@ async def upload_capture(
 
     try:
         db.commit()
+    except IntegrityError:
+        db.rollback()
+
+        if capture_id is not None:
+            existing = db.get(Capture, stable_capture_id)
+            storage.delete(storage_key)
+
+            if existing is not None and _matches_capture_replay(
+                existing,
+                inspection_id=inspection.id,
+                officer_id=officer.id,
+                view_type=view_type,
+                digest=digest,
+                mime_type=verified.mime_type,
+                size_bytes=len(data),
+                width_px=verified.width_px,
+                height_px=verified.height_px,
+            ):
+                _verify_replayed_capture_storage(storage, existing)
+                return existing
+
+            _raise_client_capture_id_conflict()
+
+        storage.delete(storage_key)
+        raise
     except Exception:
         db.rollback()
         storage.delete(storage_key)
