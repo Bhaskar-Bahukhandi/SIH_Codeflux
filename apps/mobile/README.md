@@ -20,6 +20,11 @@ Implemented on the Phase 7 branch:
 - headless sync coordinator interfaces for execution and reconciliation;
 - replay-aware HTTP adapter for inspection creation, capture upload, preprocessing, geometry, OCR runs, declaration extraction, rule evaluation, submission, Officer review creation and recheck reopening;
 - Bearer-token injection through an external token provider rather than hard-coded credentials;
+- real Officer login client using `POST /auth/login` + `GET /auth/me`;
+- secure session persistence only after the server confirms an active Officer account;
+- expired network tokens preserve offline Officer identity but pause synchronization until re-authentication;
+- app-facing Officer workspace service for listing owned inspections, creating drafts, adding evidence, queueing review and requesting sync;
+- field-workflow orchestration that builds the full per-capture upload -> preprocessing -> geometry -> OCR dependency chain without UI-managed UUIDs;
 - exact-resource or lifecycle-state reconciliation for every implemented pre-finalization mutation before replaying an uncertain remote outcome;
 - local capture checksum/size verification before any upload request;
 - bounded startup queue draining that continues past isolated blocked/conflicted work;
