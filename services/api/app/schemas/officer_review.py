@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -6,6 +7,7 @@ from app.models.officer_review import OfficerReviewDecision
 
 
 class OfficerRuleReviewCreate(BaseModel):
+    id: UUID | None = None
     decision: OfficerReviewDecision
     corrected_value: dict | None = None
     note: str | None = Field(default=None, max_length=2000)
