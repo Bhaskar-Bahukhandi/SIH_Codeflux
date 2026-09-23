@@ -166,6 +166,42 @@ void main() {
     expect(executor.calls, 1);
   });
 
+  test("parked timeout can be reconciled later after recovery", () async {
+    final now = DateTime.utc(2026, 9, 23, 19, 30);
+    await enqueueOperation(now);
+    final executor = FakeExecutor(
+      (_) async => throw const SyncRequestFailure(timedOut: true),
+    );
+    final initialCoordinator = SyncCoordinator(
+      queue: queue,
+      executor: executor,
+      reconciler: FakeReconciler(
+        const ReconciliationResult.unresolved(),
+      ),
+    );
+
+    final initial = await initialCoordinator.runNext(now: now);
+    expect(initial.status, SyncCycleStatus.reconciliationRequired);
+
+    final recoveredCoordinator = SyncCoordinator(
+      queue: queue,
+      executor: executor,
+      reconciler: FakeReconciler(
+        const ReconciliationResult.applied(
+          remoteResourceId: inspectionId,
+        ),
+      ),
+    );
+    final reconciled = await recoveredCoordinator.reconcilePending(
+      operationId,
+      now: now.add(const Duration(minutes: 5)),
+    );
+
+    expect(reconciled.status, SyncCycleStatus.synced);
+    expect((await queue.getById(operationId))!.state, SyncState.synced);
+    expect(executor.calls, 1);
+  });
+
   test("verified not-applied timeout schedules safe retry", () async {
     final now = DateTime.utc(2026, 9, 23, 20);
     await enqueueOperation(now);
