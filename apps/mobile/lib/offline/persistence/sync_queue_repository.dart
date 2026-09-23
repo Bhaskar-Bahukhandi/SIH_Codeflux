@@ -61,10 +61,18 @@ class SyncQueueRepository {
       }
     }
 
-    await offlineDatabase.database.insert(
-      "sync_operations",
-      _toRow(operation),
-    );
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.insert(
+        "sync_operations",
+        _toRow(operation),
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        SyncState.queued,
+        updatedAt: operation.updatedAt,
+      );
+    });
     return (await getById(operation.id))!;
   }
 
@@ -123,21 +131,32 @@ class SyncQueueRepository {
             operation.state,
             SyncState.blocked,
           );
+          final dependencyErrorKind =
+              disposition == _DependencyDisposition.missing
+                  ? "dependency_missing"
+                  : "dependency_blocked";
+          const dependencyErrorMessage =
+              "A required predecessor operation is not resolvable.";
           await txn.update(
             "sync_operations",
             <String, Object?>{
               "state": SyncState.blocked.dbValue,
-              "last_error_kind": disposition == _DependencyDisposition.missing
-                  ? "dependency_missing"
-                  : "dependency_blocked",
+              "last_error_kind": dependencyErrorKind,
               "last_error_code": null,
-              "last_error_message":
-                  "A required predecessor operation is not resolvable.",
+              "last_error_message": dependencyErrorMessage,
               "next_attempt_at": null,
               "updated_at": timestamp.toIso8601String(),
             },
             where: "id = ?",
             whereArgs: <Object?>[operation.id],
+          );
+          await _projectResourceState(
+            txn,
+            operation,
+            SyncState.blocked,
+            errorKind: dependencyErrorKind,
+            errorMessage: dependencyErrorMessage,
+            updatedAt: timestamp,
           );
           continue;
         }
@@ -157,6 +176,12 @@ class SyncQueueRepository {
           },
           where: "id = ?",
           whereArgs: <Object?>[operation.id],
+        );
+        await _projectResourceState(
+          txn,
+          operation,
+          SyncState.syncing,
+          updatedAt: timestamp,
         );
 
         final claimed = await txn.query(
@@ -187,22 +212,32 @@ class SyncQueueRepository {
     }
     SyncStateMachine.requireTransition(operation.state, SyncState.synced);
 
-    await offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "state": SyncState.synced.dbValue,
-        "remote_resource_id": remoteResourceId ?? operation.remoteResourceId,
-        "next_attempt_at": null,
-        "last_error_kind": null,
-        "last_error_code": null,
-        "last_error_message": null,
-        "updated_at": (now ?? DateTime.now().toUtc())
-            .toUtc()
-            .toIso8601String(),
-      },
-      where: "id = ?",
-      whereArgs: <Object?>[id],
-    );
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    final resolvedRemoteId =
+        remoteResourceId ?? operation.remoteResourceId;
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.update(
+        "sync_operations",
+        <String, Object?>{
+          "state": SyncState.synced.dbValue,
+          "remote_resource_id": resolvedRemoteId,
+          "next_attempt_at": null,
+          "last_error_kind": null,
+          "last_error_code": null,
+          "last_error_message": null,
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        SyncState.synced,
+        remoteResourceId: resolvedRemoteId,
+        updatedAt: timestamp,
+      );
+    });
   }
 
   Future<void> markFailure(
@@ -236,19 +271,30 @@ class SyncQueueRepository {
     }
 
     SyncStateMachine.requireTransition(operation.state, targetState);
-    await offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "state": targetState.dbValue,
-        "next_attempt_at": nextAttemptAt?.toIso8601String(),
-        "last_error_kind": errorKind,
-        "last_error_code": apiCode,
-        "last_error_message": message,
-        "updated_at": timestamp.toIso8601String(),
-      },
-      where: "id = ?",
-      whereArgs: <Object?>[id],
-    );
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.update(
+        "sync_operations",
+        <String, Object?>{
+          "state": targetState.dbValue,
+          "next_attempt_at": nextAttemptAt?.toIso8601String(),
+          "last_error_kind": errorKind,
+          "last_error_code": apiCode,
+          "last_error_message": message,
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        targetState,
+        errorKind: errorKind,
+        errorCode: apiCode,
+        errorMessage: message,
+        updatedAt: timestamp,
+      );
+    });
   }
 
   Future<void> scheduleRetryAfterReconciliation(
@@ -266,19 +312,34 @@ class SyncQueueRepository {
     }
 
     if (!retryPolicy.canRetry(operation.attemptCount)) {
-      await offlineDatabase.database.update(
-        "sync_operations",
-        <String, Object?>{
-          "state": SyncState.blocked.dbValue,
-          "last_error_kind": "retry_exhausted",
-          "last_error_code": null,
-          "last_error_message":
-              "The operation was reconciled as not applied, but its retry budget is exhausted.",
-          "updated_at": timestamp.toIso8601String(),
-        },
-        where: "id = ?",
-        whereArgs: <Object?>[id],
+      SyncStateMachine.requireTransition(
+        operation.state,
+        SyncState.blocked,
       );
+      const retryErrorMessage =
+          "The operation was reconciled as not applied, but its retry budget is exhausted.";
+      await offlineDatabase.database.transaction((txn) async {
+        await txn.update(
+          "sync_operations",
+          <String, Object?>{
+            "state": SyncState.blocked.dbValue,
+            "last_error_kind": "retry_exhausted",
+            "last_error_code": null,
+            "last_error_message": retryErrorMessage,
+            "updated_at": timestamp.toIso8601String(),
+          },
+          where: "id = ?",
+          whereArgs: <Object?>[id],
+        );
+        await _projectResourceState(
+          txn,
+          operation,
+          SyncState.blocked,
+          errorKind: "retry_exhausted",
+          errorMessage: retryErrorMessage,
+          updatedAt: timestamp,
+        );
+      });
       return;
     }
 
@@ -312,37 +373,73 @@ class SyncQueueRepository {
         "Reconciliation failure can be recorded only for a parked operation.",
       );
     }
-    await offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "last_error_kind": "reconciliation_unavailable",
-        "last_error_code": apiCode,
-        "last_error_message": message,
-        "updated_at": (now ?? DateTime.now().toUtc())
-            .toUtc()
-            .toIso8601String(),
-      },
-      where: "id = ?",
-      whereArgs: <Object?>[id],
-    );
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.update(
+        "sync_operations",
+        <String, Object?>{
+          "last_error_kind": "reconciliation_unavailable",
+          "last_error_code": apiCode,
+          "last_error_message": message,
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        SyncState.retryRequired,
+        errorKind: "reconciliation_unavailable",
+        errorCode: apiCode,
+        errorMessage: message,
+        updatedAt: timestamp,
+      );
+    });
   }
 
   Future<int> recoverInterruptedSyncs({DateTime? now}) async {
     final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
-    return offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "state": SyncState.retryRequired.dbValue,
-        "next_attempt_at": timestamp.toIso8601String(),
-        "last_error_kind": "process_interrupted",
-        "last_error_code": null,
-        "last_error_message":
-            "The previous sync attempt ended before completion was recorded.",
-        "updated_at": timestamp.toIso8601String(),
-      },
-      where: "state = ?",
-      whereArgs: <Object?>[SyncState.syncing.dbValue],
-    );
+    return offlineDatabase.database.transaction((txn) async {
+      final rows = await txn.query(
+        "sync_operations",
+        where: "state = ?",
+        whereArgs: <Object?>[SyncState.syncing.dbValue],
+      );
+      const interruptionMessage =
+          "The previous sync attempt ended before completion was recorded.";
+
+      for (final row in rows) {
+        final operation = _fromRow(row);
+        SyncStateMachine.requireTransition(
+          operation.state,
+          SyncState.retryRequired,
+        );
+        await txn.update(
+          "sync_operations",
+          <String, Object?>{
+            "state": SyncState.retryRequired.dbValue,
+            "next_attempt_at": timestamp.toIso8601String(),
+            "last_error_kind": "process_interrupted",
+            "last_error_code": null,
+            "last_error_message": interruptionMessage,
+            "updated_at": timestamp.toIso8601String(),
+          },
+          where: "id = ?",
+          whereArgs: <Object?>[operation.id],
+        );
+        await _projectResourceState(
+          txn,
+          operation,
+          SyncState.retryRequired,
+          errorKind: "process_interrupted",
+          errorMessage: interruptionMessage,
+          updatedAt: timestamp,
+        );
+      }
+
+      return rows.length;
+    });
   }
 
   Future<void> requeueAfterResolution(
@@ -353,19 +450,27 @@ class SyncQueueRepository {
     SyncStateMachine.requireTransition(operation.state, SyncState.queued);
     final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
 
-    await offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "state": SyncState.queued.dbValue,
-        "next_attempt_at": null,
-        "last_error_kind": null,
-        "last_error_code": null,
-        "last_error_message": null,
-        "updated_at": timestamp.toIso8601String(),
-      },
-      where: "id = ?",
-      whereArgs: <Object?>[id],
-    );
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.update(
+        "sync_operations",
+        <String, Object?>{
+          "state": SyncState.queued.dbValue,
+          "next_attempt_at": null,
+          "last_error_kind": null,
+          "last_error_code": null,
+          "last_error_message": null,
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        SyncState.queued,
+        updatedAt: timestamp,
+      );
+    });
   }
 
   Future<SyncOperation> _requireOperation(String id) async {
@@ -403,6 +508,70 @@ class SyncQueueRepository {
     return waiting
         ? _DependencyDisposition.waiting
         : _DependencyDisposition.ready;
+  }
+
+  Future<void> _projectResourceState(
+    DatabaseExecutor executor,
+    SyncOperation operation,
+    SyncState nextState, {
+    String? remoteResourceId,
+    String? errorKind,
+    String? errorCode,
+    String? errorMessage,
+    required DateTime updatedAt,
+  }) async {
+    String? table;
+    if (operation.type == SyncOperationType.createInspection) {
+      table = "local_inspections";
+    } else if (operation.type == SyncOperationType.uploadCapture) {
+      table = "local_evidence";
+    } else {
+      return;
+    }
+
+    final rows = await executor.query(
+      table,
+      columns: <String>["sync_state"],
+      where: "id = ?",
+      whereArgs: <Object?>[operation.resourceId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      throw StateError(
+        "Queued resource projection is missing for " +
+            operation.type.dbValue +
+            ".",
+      );
+    }
+
+    final currentState = SyncState.fromDb(
+      rows.single["sync_state"]! as String,
+    );
+    SyncStateMachine.requireTransition(currentState, nextState);
+
+    final values = <String, Object?>{
+      "sync_state": nextState.dbValue,
+      "updated_at": updatedAt.toUtc().toIso8601String(),
+      if (remoteResourceId != null) "remote_id": remoteResourceId,
+    };
+
+    if (table == "local_inspections") {
+      values["last_error_kind"] = errorKind;
+      values["last_error_code"] = errorCode;
+      values["last_error_message"] = errorMessage;
+    }
+
+    final updated = await executor.update(
+      table,
+      values,
+      where: "id = ?",
+      whereArgs: <Object?>[operation.resourceId],
+    );
+    if (updated != 1) {
+      throw StateError(
+        "Queued resource projection update was not exactly one row.",
+      );
+    }
   }
 
   bool _sameImmutableOperation(
