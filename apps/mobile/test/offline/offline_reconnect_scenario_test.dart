@@ -73,6 +73,7 @@ void main() {
 
       final draft = await drafts.createInspection(
         id: inspectionId,
+        officerUserId: "officer-1",
         productName: "Offline Reconnect Product",
         productIdentifier: "OFFLINE-001",
         now: DateTime.utc(2026, 9, 23, 23),
