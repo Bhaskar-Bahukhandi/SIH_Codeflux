@@ -28,6 +28,18 @@ void main() {
     expect(server.requiresReconciliation, isTrue);
   });
 
+  test("unverifiable success response requires reconciliation", () {
+    final decision = SyncFailureClassifier.classify(
+      outcomeUnknown: true,
+      apiCode: "response_unverifiable",
+    );
+
+    expect(decision.kind, SyncFailureKind.responseUnverifiable);
+    expect(decision.targetState, SyncState.retryRequired);
+    expect(decision.autoRetry, isFalse);
+    expect(decision.requiresReconciliation, isTrue);
+  });
+
   test("authentication and validation failures are blocked", () {
     expect(
       SyncFailureClassifier.classify(statusCode: 401).targetState,
