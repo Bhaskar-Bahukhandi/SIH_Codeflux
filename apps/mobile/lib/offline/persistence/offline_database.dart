@@ -9,7 +9,7 @@ import "package:sqflite_common/sqlite_api.dart"
 class OfflineDatabase {
   OfflineDatabase._(this.database);
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String databaseFileName = "codeflux_offline.sqlite3";
 
   final Database database;
@@ -38,6 +38,9 @@ class OfflineDatabase {
         onCreate: (db, version) async {
           await _createSchema(db);
         },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          await _upgradeSchema(db, oldVersion, newVersion);
+        },
       ),
     );
     return OfflineDatabase._(database);
@@ -49,6 +52,7 @@ class OfflineDatabase {
         id TEXT PRIMARY KEY,
         product_name TEXT NOT NULL,
         product_identifier TEXT,
+        officer_user_id TEXT,
         sync_state TEXT NOT NULL,
         remote_id TEXT,
         last_error_kind TEXT,
@@ -115,6 +119,19 @@ class OfflineDatabase {
       "CREATE INDEX ix_sync_operations_inspection "
       "ON sync_operations(inspection_id, created_at)",
     );
+  }
+
+  static Future<void> _upgradeSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2 && newVersion >= 2) {
+      await db.execute(
+        "ALTER TABLE local_inspections "
+        "ADD COLUMN officer_user_id TEXT",
+      );
+    }
   }
 
   Future<void> close() => database.close();
