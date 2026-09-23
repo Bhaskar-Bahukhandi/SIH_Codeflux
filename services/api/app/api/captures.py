@@ -50,7 +50,7 @@ def _matches_capture_replay(
     return (
         capture.inspection_id == inspection_id
         and capture.uploader_user_id == officer_id
-        and capture.view_type is view_type
+        and capture.view_type == view_type
         and capture.sha256 == digest
         and capture.mime_type == mime_type
         and capture.size_bytes == size_bytes
@@ -180,21 +180,23 @@ async def upload_capture(
             existing = db.get(Capture, stable_capture_id)
             storage.delete(storage_key)
 
-            if existing is not None and _matches_capture_replay(
-                existing,
-                inspection_id=inspection.id,
-                officer_id=officer.id,
-                view_type=view_type,
-                digest=digest,
-                mime_type=verified.mime_type,
-                size_bytes=len(data),
-                width_px=verified.width_px,
-                height_px=verified.height_px,
-            ):
-                _verify_replayed_capture_storage(storage, existing)
-                return existing
+            if existing is not None:
+                if _matches_capture_replay(
+                    existing,
+                    inspection_id=inspection.id,
+                    officer_id=officer.id,
+                    view_type=view_type,
+                    digest=digest,
+                    mime_type=verified.mime_type,
+                    size_bytes=len(data),
+                    width_px=verified.width_px,
+                    height_px=verified.height_px,
+                ):
+                    _verify_replayed_capture_storage(storage, existing)
+                    return existing
+                _raise_client_capture_id_conflict()
 
-            _raise_client_capture_id_conflict()
+            raise
 
         storage.delete(storage_key)
         raise
