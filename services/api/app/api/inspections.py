@@ -94,13 +94,14 @@ def create_inspection(
         db.rollback()
         if client_id is not None:
             existing = db.get(Inspection, client_id)
-            if existing is not None and _matches_create_replay(
-                existing,
-                officer_id=officer.id,
-                payload=payload,
-            ):
-                return existing
-            _raise_client_id_conflict()
+            if existing is not None:
+                if _matches_create_replay(
+                    existing,
+                    officer_id=officer.id,
+                    payload=payload,
+                ):
+                    return existing
+                _raise_client_id_conflict()
         raise
 
     db.refresh(inspection)
