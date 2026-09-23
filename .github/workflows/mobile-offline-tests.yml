@@ -53,5 +53,16 @@ jobs:
       - name: Test login UI
         run: timeout --signal=TERM 3m flutter test test/ui/login_screen_test.dart --reporter expanded
 
-      - name: Test Officer field flow
-        run: timeout --signal=TERM 4m flutter test test/ui/officer_field_flow_test.dart --reporter expanded
+      - name: Test create inspection UI
+        run: >
+          timeout --signal=TERM 2m flutter test
+          test/ui/officer_field_flow_test.dart
+          --plain-name "Officer creates an inspection and opens its detail screen"
+          --reporter expanded
+
+      - name: Test capture and review UI
+        run: >
+          timeout --signal=TERM 2m flutter test
+          test/ui/officer_field_flow_test.dart
+          --plain-name "Officer captures package evidence and queues review"
+          --reporter expanded
