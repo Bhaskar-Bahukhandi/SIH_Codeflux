@@ -1,4 +1,4 @@
-# CI recovery probe after Actions budget update
+# CI recovery probe after Actions budget removal
 name: Mobile Offline Tests
 
 on:
