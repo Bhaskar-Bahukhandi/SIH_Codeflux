@@ -2,6 +2,7 @@ import "dart:convert";
 
 import "package:sqflite_common/sqlite_api.dart";
 
+import "../models/inspection_sync_summary.dart";
 import "../models/sync_operation.dart";
 import "../models/sync_state.dart";
 import "../sync/failure_classifier.dart";
@@ -74,6 +75,48 @@ class SyncQueueRepository {
       );
     });
     return (await getById(operation.id))!;
+  }
+
+  Future<InspectionSyncSummary> inspectionSyncSummary(
+    String inspectionId,
+  ) async {
+    final inspectionRows = await offlineDatabase.database.query(
+      "local_inspections",
+      columns: <String>["sync_state"],
+      where: "id = ?",
+      whereArgs: <Object?>[inspectionId],
+      limit: 1,
+    );
+    if (inspectionRows.isEmpty) {
+      throw StateError("Local inspection does not exist.");
+    }
+
+    final localState = SyncState.fromDb(
+      inspectionRows.single["sync_state"]! as String,
+    );
+    final operationRows = await offlineDatabase.database.query(
+      "sync_operations",
+      columns: <String>["state"],
+      where: "inspection_id = ?",
+      whereArgs: <Object?>[inspectionId],
+    );
+
+    final counts = <SyncState, int>{
+      for (final state in SyncState.values) state: 0,
+    };
+    final allStates = <SyncState>[localState];
+    for (final row in operationRows) {
+      final state = SyncState.fromDb(row["state"]! as String);
+      counts[state] = (counts[state] ?? 0) + 1;
+      allStates.add(state);
+    }
+
+    return InspectionSyncSummary(
+      inspectionId: inspectionId,
+      overallState: _aggregateInspectionState(allStates),
+      localResourceState: localState,
+      operationCounts: Map<SyncState, int>.unmodifiable(counts),
+    );
   }
 
   Future<SyncOperation?> getById(String id) async {
@@ -493,6 +536,24 @@ class SyncQueueRepository {
         updatedAt: timestamp,
       );
     });
+  }
+
+  SyncState _aggregateInspectionState(List<SyncState> states) {
+    const priority = <SyncState>[
+      SyncState.conflict,
+      SyncState.blocked,
+      SyncState.syncing,
+      SyncState.retryRequired,
+      SyncState.queued,
+      SyncState.localOnly,
+      SyncState.synced,
+    ];
+    for (final candidate in priority) {
+      if (states.contains(candidate)) {
+        return candidate;
+      }
+    }
+    return SyncState.localOnly;
   }
 
   Future<SyncOperation> _requireOperation(String id) async {
