@@ -7,3 +7,4 @@ export "persistence/sync_queue_repository.dart";
 export "storage/local_evidence_store.dart";
 export "sync/failure_classifier.dart";
 export "sync/retry_policy.dart";
+export "sync/sync_coordinator.dart";
