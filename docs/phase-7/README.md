@@ -238,3 +238,21 @@ One OCR mutation is committed in the simulated remote state and then deliberatel
 Officer review and recheck have their own adapter/factory contract tests. They are not artificially inserted into the offline-before-processing scenario because real Officer review requires rule-result IDs returned by the server after evaluation.
 
 Finalization/report work remains gated on PR #35.
+
+
+## App-service checkpoint
+
+The mobile branch now also includes the non-visual application-services layer needed before UI work:
+
+- real Officer authentication client against the existing FastAPI auth endpoints;
+- secure Officer session persistence after server identity verification;
+- offline identity remains usable when the access token expires;
+- synchronization pauses for re-authentication instead of mutating queued work to blocked;
+- Officer-scoped local inspection listing;
+- Officer ownership enforcement for local edits;
+- field inspection workflow orchestration for local draft creation and evidence capture registration;
+- automatic durable dependency graph creation for capture upload, preprocessing, geometry and OCR;
+- idempotent extraction -> rule evaluation -> submission queue construction;
+- workspace facade exposing inspection list/create/evidence/review/sync operations without exposing SQLite internals to future widgets.
+
+UI, camera/gallery acquisition and platform project scaffolding remain deferred until the Flutter analyzer/test gate can execute.
