@@ -48,6 +48,8 @@ class SyncFailureClassifier {
     "capture_derivative_integrity_mismatch",
     "finalization_snapshot_integrity_failed",
     "finalized_report_integrity_failed",
+    "local_evidence_integrity_failed",
+    "local_evidence_missing",
   };
 
   static SyncFailureDecision classify({
