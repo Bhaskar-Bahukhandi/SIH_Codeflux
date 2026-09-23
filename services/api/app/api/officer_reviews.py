@@ -10,7 +10,7 @@ from app.db import get_db
 from app.errors import conflict, not_found
 from app.models.audit import AuditEventType
 from app.models.officer_review import OfficerReviewDecision, OfficerRuleReview
-from app.models.rule_evaluation import RuleEvaluationResult, RuleEvaluationRun
+from app.models.rule_evaluation import RuleEvaluationResult
 from app.models.user import User
 from app.schemas.officer_review import (
     OfficerRuleReviewCreate,
