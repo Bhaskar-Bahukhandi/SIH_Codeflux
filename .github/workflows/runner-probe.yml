@@ -1,0 +1,20 @@
+name: Runner Probe
+
+on:
+  push:
+    branches:
+      - "phase/7-offline-sync"
+    paths:
+      - ".github/workflows/runner-probe.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/runner-probe.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm hosted runner
+        run: |
+          echo "runner-started"
+          uname -a
