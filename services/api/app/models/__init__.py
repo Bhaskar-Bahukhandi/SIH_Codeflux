@@ -8,6 +8,11 @@ from app.models.declaration import (
     DeclarationSummary,
     DeclarationType,
 )
+from app.models.finding_review import (
+    OfficerFindingReview,
+    OfficerReviewDecision,
+    OfficerReviewOutcome,
+)
 from app.models.geometry import CaptureGeometryAssessment, GeometryStatus
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.ocr import OcrBlock, OcrRun
@@ -43,6 +48,9 @@ __all__ = [
     "InspectionStatus",
     "OcrBlock",
     "OcrRun",
+    "OfficerFindingReview",
+    "OfficerReviewDecision",
+    "OfficerReviewOutcome",
     "RuleEvaluationResult",
     "RuleEvaluationRun",
     "RuleEvaluationStatus",
