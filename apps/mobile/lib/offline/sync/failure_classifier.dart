@@ -64,8 +64,8 @@ class SyncFailureClassifier {
       return const SyncFailureDecision(
         kind: SyncFailureKind.transportUnavailable,
         targetState: SyncState.retryRequired,
-        autoRetry: true,
-        requiresReconciliation: false,
+        autoRetry: false,
+        requiresReconciliation: true,
       );
     }
 
@@ -146,8 +146,8 @@ class SyncFailureClassifier {
       return const SyncFailureDecision(
         kind: SyncFailureKind.serverRetriable,
         targetState: SyncState.retryRequired,
-        autoRetry: true,
-        requiresReconciliation: false,
+        autoRetry: false,
+        requiresReconciliation: true,
       );
     }
 
