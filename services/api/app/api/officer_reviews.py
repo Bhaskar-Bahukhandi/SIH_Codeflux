@@ -20,28 +20,16 @@ from app.schemas.officer_review import (
 from app.services.audit import record_inspection_event
 from app.services.inspection_access import get_visible_inspection_or_raise
 from app.services.inspection_lifecycle import require_pending_review
+from app.services.officer_review_state import (
+    latest_officer_reviews_by_result,
+    latest_rule_evaluation_run,
+)
 from app.services.officer_review_validation import normalize_officer_corrected_value
 
 router = APIRouter(
     prefix="/inspections/{inspection_id}/rule-reviews",
     tags=["officer-rule-reviews"],
 )
-
-
-def _latest_rule_evaluation_run(
-    db: Session,
-    *,
-    inspection_id: str,
-) -> RuleEvaluationRun | None:
-    return db.scalar(
-        select(RuleEvaluationRun)
-        .where(RuleEvaluationRun.inspection_id == inspection_id)
-        .order_by(
-            RuleEvaluationRun.created_at.desc(),
-            RuleEvaluationRun.id.desc(),
-        )
-        .limit(1)
-    )
 
 
 @router.post(
@@ -58,7 +46,7 @@ def review_rule_result(
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
     require_pending_review(inspection)
 
-    latest_run = _latest_rule_evaluation_run(
+    latest_run = latest_rule_evaluation_run(
         db,
         inspection_id=inspection.id,
     )
@@ -156,11 +144,10 @@ def list_rule_reviews(
         ).all()
     )
 
-    latest_by_result: dict[str, OfficerRuleReview] = {}
-    for review in reviews:
-        current = latest_by_result.get(review.rule_evaluation_result_id)
-        if current is None or review.revision > current.revision:
-            latest_by_result[review.rule_evaluation_result_id] = review
+    latest_by_result = latest_officer_reviews_by_result(
+        db,
+        inspection_id=inspection.id,
+    )
 
     return {
         "reviews": reviews,
