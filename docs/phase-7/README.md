@@ -87,14 +87,14 @@ At minimum distinguish:
 - transport unavailable;
 - timeout / outcome unknown;
 - authentication expired;
-- server 5xx retriable failure;
+- server 5xx / uncertain remote outcome;
 - validation failure;
 - authorization failure;
 - stale-evidence conflict;
 - domain lifecycle conflict;
 - checksum/integrity conflict.
 
-Outcome-unknown requests require reconciliation before blind replay where the API provides enough identifying information.
+Timeouts, transport loss, 5xx responses, interrupted in-flight operations and unverifiable success responses are treated as uncertain remote outcomes. They require reconciliation before replay where the API provides enough identifying information.
 
 ### Idempotency
 
@@ -142,10 +142,10 @@ The current Phase 7 branch now contains two bounded implementation layers.
 - explicit local-only / queued / syncing / synced / retry-required / conflict / blocked states;
 - durable dependency-aware queue;
 - blocked/missing predecessor propagation;
-- interrupted-sync recovery after process restart;
+- reconciliation-first recovery after a process restart interrupts an in-flight operation;
 - bounded retry/backoff;
 - transport/API failure classification;
-- timeout outcome-unknown protection;
+- generalized uncertain-outcome protection for timeout, transport loss, 5xx, process interruption and unverifiable success responses;
 - reconciliation-aware headless sync coordinator;
 - replay-aware HTTP executor/reconciler for inspection creation, capture upload and Officer review creation;
 - local evidence SHA-256/size validation before capture upload;
@@ -192,7 +192,7 @@ Test at least:
 
 - inspection succeeds, capture upload fails;
 - one capture succeeds, next fails;
-- timeout after server success;
+- timeout/transport loss/5xx after server success;
 - expired authentication;
 - stale evidence after reconnect;
 - semantic 409 conflict;
