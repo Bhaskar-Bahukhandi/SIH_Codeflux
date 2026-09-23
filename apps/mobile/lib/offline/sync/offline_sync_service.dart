@@ -76,19 +76,18 @@ class OfflineSyncService {
       }
 
       processed += 1;
-      switch (result.status) {
-        case SyncCycleStatus.synced:
-          synced += 1;
-        case SyncCycleStatus.retryScheduled:
-          retryScheduled += 1;
-        case SyncCycleStatus.blocked:
-          blocked += 1;
-        case SyncCycleStatus.conflict:
-          conflicts += 1;
-        case SyncCycleStatus.reconciliationRequired:
-          reconciliationRequired += 1;
-        case SyncCycleStatus.idle:
-          throw StateError("Idle result must be handled before counting.");
+      if (result.status == SyncCycleStatus.synced) {
+        synced += 1;
+      } else if (result.status == SyncCycleStatus.retryScheduled) {
+        retryScheduled += 1;
+      } else if (result.status == SyncCycleStatus.blocked) {
+        blocked += 1;
+      } else if (result.status == SyncCycleStatus.conflict) {
+        conflicts += 1;
+      } else if (result.status == SyncCycleStatus.reconciliationRequired) {
+        reconciliationRequired += 1;
+      } else {
+        throw StateError("Idle result must be handled before counting.");
       }
     }
 
