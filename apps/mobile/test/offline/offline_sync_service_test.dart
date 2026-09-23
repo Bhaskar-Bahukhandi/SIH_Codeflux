@@ -79,10 +79,12 @@ void main() {
 
     await drafts.createInspection(
       id: firstInspection,
+      officerUserId: "officer-1",
       productName: "Invalid Local Draft",
     );
     await drafts.createInspection(
       id: secondInspection,
+      officerUserId: "officer-1",
       productName: "Independent Draft",
     );
 
@@ -172,6 +174,7 @@ void main() {
 
     await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Interrupted Draft",
     );
     await queue.enqueue(
@@ -244,6 +247,7 @@ void main() {
       final operationId = "24242424-2424-4242-8242-" + suffix;
       await drafts.createInspection(
         id: inspectionId,
+        officerUserId: "officer-1",
         productName: "Drain " + index.toString(),
       );
       await queue.enqueue(
