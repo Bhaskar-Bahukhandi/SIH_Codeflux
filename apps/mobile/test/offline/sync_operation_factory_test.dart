@@ -176,6 +176,40 @@ void main() {
     );
   });
 
+  test("submission and recheck factories snapshot lifecycle context", () {
+    final factory = SyncOperationFactory();
+    const inspectionId = "71717171-7171-4717-8717-717171717171";
+    final previousReopen = DateTime.utc(2026, 9, 23, 10, 15);
+
+    final submit = factory.submitInspection(
+      inspectionId: inspectionId,
+      reopenedForRecheckAt: previousReopen,
+      dependencyIds: const <String>["evaluation-op"],
+      operationId: "72727272-7272-4727-8727-727272727272",
+    );
+    expect(submit.type, SyncOperationType.submitInspection);
+    expect(submit.resourceId, inspectionId);
+    expect(
+      submit.payload["reopened_for_recheck_at"],
+      previousReopen.toIso8601String(),
+    );
+    expect(submit.dependencyIds, const <String>["evaluation-op"]);
+
+    final reopen = factory.reopenForRecheck(
+      inspectionId: inspectionId,
+      previousReopenedForRecheckAt: previousReopen,
+      dependencyIds: const <String>["review-op"],
+      operationId: "73737373-7373-4737-8737-737373737373",
+    );
+    expect(reopen.type, SyncOperationType.reopenForRecheck);
+    expect(reopen.resourceId, inspectionId);
+    expect(
+      reopen.payload["previous_reopened_for_recheck_at"],
+      previousReopen.toIso8601String(),
+    );
+    expect(reopen.dependencyIds, const <String>["review-op"]);
+  });
+
   test("review factory trims optional note and preserves stable review ID", () {
     final factory = SyncOperationFactory();
     const reviewId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
