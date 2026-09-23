@@ -17,6 +17,7 @@ class SyncRequestFailure implements Exception {
     this.message,
     this.transportUnavailable = false,
     this.timedOut = false,
+    this.outcomeUnknown = false,
   });
 
   final int? statusCode;
@@ -24,6 +25,7 @@ class SyncRequestFailure implements Exception {
   final String? message;
   final bool transportUnavailable;
   final bool timedOut;
+  final bool outcomeUnknown;
 }
 
 abstract interface class SyncOperationExecutor {
@@ -118,6 +120,7 @@ class SyncCoordinator {
         apiCode: failure.apiCode,
         transportUnavailable: failure.transportUnavailable,
         timedOut: failure.timedOut,
+        outcomeUnknown: failure.outcomeUnknown,
       );
 
       if (decision.targetState == SyncState.retryRequired &&
