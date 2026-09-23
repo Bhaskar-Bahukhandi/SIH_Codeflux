@@ -23,6 +23,7 @@ from app.services.inspection_lifecycle import require_pending_review
 from app.services.officer_review_state import (
     latest_officer_reviews_by_result,
     latest_rule_evaluation_run,
+    rule_evaluation_matches_current_evidence,
 )
 from app.services.officer_review_validation import normalize_officer_corrected_value
 
@@ -54,6 +55,15 @@ def review_rule_result(
         raise conflict(
             "rule_evaluation_required",
             "A preliminary rule evaluation is required before officer review.",
+        )
+    if not rule_evaluation_matches_current_evidence(
+        db,
+        inspection_id=inspection.id,
+        run=latest_run,
+    ):
+        raise conflict(
+            "current_rule_evaluation_required",
+            "The latest rule evaluation is stale. Refresh declaration extraction and rule evaluation before officer review.",
         )
 
     result = db.scalar(
