@@ -256,3 +256,24 @@ The mobile branch now also includes the non-visual application-services layer ne
 - workspace facade exposing inspection list/create/evidence/review/sync operations without exposing SQLite internals to future widgets.
 
 UI, camera/gallery acquisition and platform project scaffolding remain deferred until the Flutter analyzer/test gate can execute.
+
+
+## Officer UI checkpoint
+
+The Phase 7 branch now contains a minimal Flutter field interface over the existing services:
+
+- real Officer login screen;
+- Officer workspace with persisted sync summaries;
+- local inspection creation;
+- package evidence detail screen;
+- camera/gallery image acquisition;
+- durable pending-capture intent for Android activity-loss recovery;
+- backend-supported package-view selection;
+- current three-field rule applicability context;
+- queue-for-review action;
+- sync-now and re-authentication boundary;
+- widget tests over temporary SQLite and mock HTTP.
+
+The UI intentionally does not include decorative operational statistics, fake live data, final legal verdicts, penalty/notice generation or dashboard functionality.
+
+Native Android/iOS runner directories remain an execution gate. They should be generated with the checked-in guarded platform-bootstrap script only when a real Flutter SDK is available, followed by `flutter analyze` and `flutter test`.
