@@ -52,5 +52,23 @@ void main() {
     );
     expect(identity.kind, SyncFailureKind.identityConflict);
     expect(identity.targetState, SyncState.conflict);
+
+    final remoteIdentity = SyncFailureClassifier.classify(
+      statusCode: 409,
+      apiCode: "remote_identity_mismatch",
+    );
+    expect(remoteIdentity.kind, SyncFailureKind.identityConflict);
+
+    final localIntegrity = SyncFailureClassifier.classify(
+      statusCode: 409,
+      apiCode: "local_evidence_integrity_failed",
+    );
+    expect(localIntegrity.kind, SyncFailureKind.integrityConflict);
+
+    final remoteIntegrity = SyncFailureClassifier.classify(
+      statusCode: 409,
+      apiCode: "remote_evidence_integrity_mismatch",
+    );
+    expect(remoteIntegrity.kind, SyncFailureKind.integrityConflict);
   });
 }
