@@ -4,7 +4,17 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Enum as SqlEnum, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum as SqlEnum,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -23,6 +33,10 @@ class OfficerReviewDecision(str, Enum):
 class OfficerRuleReview(Base):
     __tablename__ = "officer_rule_reviews"
     __table_args__ = (
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_officer_rule_reviews_revision_positive",
+        ),
         UniqueConstraint(
             "rule_evaluation_result_id",
             "revision",
