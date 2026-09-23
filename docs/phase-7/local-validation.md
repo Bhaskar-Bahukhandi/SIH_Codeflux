@@ -1,6 +1,6 @@
 # Phase 7 Local Validation
 
-Use this only as an execution fallback while GitHub-hosted Actions is unable to allocate a runner.
+Use this as a local cross-check of the hosted CI validation.
 
 The script does not install dependencies, change repository source files, or run destructive database migration round-trips.
 
@@ -42,7 +42,7 @@ If any command fails:
 - fix the first real failure;
 - rerun the entire validation script from the beginning.
 
-A local pass is useful evidence while hosted CI is unavailable, but GitHub Actions should still be rerun once Issue #38 is resolved.
+A local pass is supporting evidence; PR #37 still requires the hosted GitHub Actions validation to pass.
 
 ## What this script deliberately does not do
 
