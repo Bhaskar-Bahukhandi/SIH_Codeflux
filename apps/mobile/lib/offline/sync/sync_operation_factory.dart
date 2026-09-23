@@ -162,6 +162,48 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation submitInspection({
+    required String inspectionId,
+    DateTime? reopenedForRecheckAt,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.submitInspection,
+      resourceId: inspectionId,
+      payload: <String, Object?>{
+        "reopened_for_recheck_at":
+            reopenedForRecheckAt?.toUtc().toIso8601String(),
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
+  SyncOperation reopenForRecheck({
+    required String inspectionId,
+    DateTime? previousReopenedForRecheckAt,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.reopenForRecheck,
+      resourceId: inspectionId,
+      payload: <String, Object?>{
+        "previous_reopened_for_recheck_at":
+            previousReopenedForRecheckAt?.toUtc().toIso8601String(),
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation createOfficerReview({
     required String inspectionId,
     required String reviewId,
