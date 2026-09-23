@@ -82,13 +82,19 @@ class CodefluxApiSyncAdapter
 
     final response = await _send(request);
     _requireSuccess(response);
-    final decoded = _decodeMap(response.body);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection",
+    );
     final remoteId = decoded["id"]?.toString();
-    if (remoteId != operation.resourceId) {
+    if (remoteId != operation.resourceId ||
+        decoded["product_name"] != body["product_name"] ||
+        decoded["product_identifier"] != body["product_identifier"]) {
       throw const SyncRequestFailure(
         statusCode: 409,
         apiCode: "remote_identity_mismatch",
-        message: "Server returned a different inspection ID.",
+        message:
+            "Server inspection response does not match the queued resource.",
       );
     }
 
@@ -162,13 +168,20 @@ class CodefluxApiSyncAdapter
 
     final response = await _send(request);
     _requireSuccess(response);
-    final decoded = _decodeMap(response.body);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "capture",
+    );
     final remoteId = decoded["id"]?.toString();
-    if (remoteId != operation.resourceId) {
+    if (remoteId != operation.resourceId ||
+        decoded["inspection_id"]?.toString() != operation.inspectionId ||
+        decoded["view_type"]?.toString() != viewType ||
+        decoded["size_bytes"] != expectedSize) {
       throw const SyncRequestFailure(
         statusCode: 409,
         apiCode: "remote_identity_mismatch",
-        message: "Server returned a different capture ID.",
+        message:
+            "Server capture response does not match the queued resource.",
       );
     }
 
@@ -221,13 +234,32 @@ class CodefluxApiSyncAdapter
 
     final response = await _send(request);
     _requireSuccess(response);
-    final decoded = _decodeMap(response.body);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "Officer review",
+    );
     final remoteId = decoded["id"]?.toString();
-    if (remoteId != operation.resourceId) {
+    if (remoteId != operation.resourceId ||
+        decoded["inspection_id"]?.toString() != operation.inspectionId ||
+        decoded["rule_evaluation_result_id"]?.toString() != resultId ||
+        decoded["decision"]?.toString() != body["decision"] ||
+        decoded["note"] != body["note"]) {
       throw const SyncRequestFailure(
         statusCode: 409,
         apiCode: "remote_identity_mismatch",
-        message: "Server returned a different Officer review ID.",
+        message:
+            "Server Officer review response does not match the queued resource.",
+      );
+    }
+
+    if (body.containsKey("corrected_value") &&
+        canonicalJsonEncode(decoded["corrected_value"]) !=
+            canonicalJsonEncode(body["corrected_value"])) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server Officer correction does not match the queued correction.",
       );
     }
 
@@ -245,7 +277,10 @@ class CodefluxApiSyncAdapter
     }
     _requireSuccess(response);
 
-    final remote = _decodeMap(response.body);
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection",
+    );
     if (remote["id"]?.toString() != operation.resourceId) {
       return const ReconciliationResult.unresolved();
     }
@@ -278,12 +313,10 @@ class CodefluxApiSyncAdapter
     }
     _requireSuccess(response);
 
-    final decoded = jsonDecode(response.body);
-    if (decoded is! List) {
-      throw const FormatException(
-        "Capture reconciliation response is not a JSON array.",
-      );
-    }
+    final decoded = _decodeReconciliationList(
+      response.body,
+      resourceLabel: "capture list",
+    );
 
     Map<String, dynamic>? remote;
     for (final item in decoded) {
@@ -337,11 +370,17 @@ class CodefluxApiSyncAdapter
     }
     _requireSuccess(response);
 
-    final decoded = _decodeMap(response.body);
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "Officer review history",
+    );
     final reviews = decoded["reviews"];
     if (reviews is! List) {
-      throw const FormatException(
-        "Officer review reconciliation response has no review list.",
+      throw const SyncRequestFailure(
+        statusCode: 502,
+        apiCode: "invalid_reconciliation_response",
+        message:
+            "Officer review reconciliation response has no review list.",
       );
     }
 
@@ -466,6 +505,67 @@ class CodefluxApiSyncAdapter
               response.statusCode.toString() +
               ".",
     );
+  }
+
+  Map<String, dynamic> _decodeMutationMap(
+    String body, {
+    required String resourceLabel,
+  }) {
+    try {
+      return _decodeMap(body);
+    } on FormatException catch (error) {
+      throw SyncRequestFailure(
+        apiCode: "response_unverifiable",
+        message:
+            "The server returned an unverifiable " +
+            resourceLabel +
+            " success response: " +
+            error.message,
+        outcomeUnknown: true,
+      );
+    }
+  }
+
+  Map<String, dynamic> _decodeReconciliationMap(
+    String body, {
+    required String resourceLabel,
+  }) {
+    try {
+      return _decodeMap(body);
+    } on FormatException catch (error) {
+      throw SyncRequestFailure(
+        statusCode: 502,
+        apiCode: "invalid_reconciliation_response",
+        message:
+            "The server returned an invalid " +
+            resourceLabel +
+            " reconciliation response: " +
+            error.message,
+      );
+    }
+  }
+
+  List<dynamic> _decodeReconciliationList(
+    String body, {
+    required String resourceLabel,
+  }) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! List) {
+        throw const FormatException("Expected a JSON array response.");
+      }
+      return decoded;
+    } on FormatException catch (error) {
+      throw SyncRequestFailure(
+        statusCode: 502,
+        apiCode: "invalid_reconciliation_response",
+        message:
+            "The server returned an invalid " +
+            resourceLabel +
+            " reconciliation response: " +
+            error.message,
+      );
+    }
   }
 
   Map<String, dynamic> _decodeMap(String body) {
