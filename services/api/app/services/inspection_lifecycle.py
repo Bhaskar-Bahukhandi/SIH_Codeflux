@@ -35,3 +35,8 @@ def reopen_for_recheck(inspection: Inspection) -> None:
     inspection.status = InspectionStatus.DRAFT
     inspection.submitted_at = None
     inspection.reopened_for_recheck_at = utcnow()
+
+
+def finalize_inspection(inspection: Inspection) -> None:
+    require_pending_review(inspection)
+    inspection.status = InspectionStatus.FINALIZED
