@@ -1,5 +1,5 @@
+import "dart:convert";
 import "dart:io";
-import "dart:typed_data";
 
 import "package:flutter/material.dart";
 import "package:flutter_test/flutter_test.dart";
@@ -52,6 +52,20 @@ class FakeAcquisition implements EvidenceAcquisitionService {
   @override
   Future<List<AcquiredEvidence>> recoverLostEvidence() async =>
       const <AcquiredEvidence>[];
+}
+
+Future<void> pumpUntilFound(
+  WidgetTester tester,
+  Finder finder, {
+  int maxPumps = 60,
+}) async {
+  for (var index = 0; index < maxPumps; index += 1) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (finder.evaluate().isNotEmpty) {
+      return;
+    }
+  }
+  throw TestFailure("Timed out waiting for expected widget.");
 }
 
 void main() {
@@ -123,20 +137,20 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("Widget Officer"));
 
       expect(find.text("Widget Officer"), findsOneWidget);
       expect(find.text("No inspections on this device yet.\n"
           "Create one to start capturing package evidence."), findsOneWidget);
 
       await tester.tap(find.text("New inspection"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("New inspection"));
 
       final formFields = find.byType(TextFormField);
       await tester.enterText(formFields.at(0), "Widget Product");
       await tester.enterText(formFields.at(1), "SKU-WIDGET");
       await tester.tap(find.widgetWithText(FilledButton, "Create"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("Add image"));
 
       expect(find.text("Widget Product"), findsWidgets);
       expect(find.text("No package images saved yet. Capture multiple views "
@@ -144,27 +158,39 @@ void main() {
           findsOneWidget);
 
       acquisition.next = AcquiredEvidence(
-        bytes: Uint8List.fromList(<int>[1, 2, 3, 4, 5]),
-        filename: "front.jpg",
+        bytes: base64Decode(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+          "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        ),
+        filename: "front.png",
       );
 
       await tester.tap(find.text("Add image"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("Which side are you capturing?"));
       await tester.tap(find.text("Front"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("Take photo"));
       await tester.tap(find.text("Take photo"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.textContaining("image saved locally and queued"),
+      );
 
       expect(find.text("Front"), findsOneWidget);
-      expect(find.textContaining("image saved locally and queued"), findsOneWidget);
+      expect(
+        find.textContaining("image saved locally and queued"),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text("Queue preliminary review"));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text("Applicability context"));
       expect(find.text("Applicability context"), findsOneWidget);
       await tester.tap(
         find.widgetWithText(FilledButton, "Queue for review"),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.textContaining("have been queued"),
+      );
 
       final inspections = await workspace.listInspections();
       expect(inspections.length, 1);
@@ -182,6 +208,10 @@ void main() {
         find.textContaining("have been queued"),
         findsOneWidget,
       );
+
+      await tester.pageBack();
+      await pumpUntilFound(tester, find.text("My inspections"));
+      expect(find.text("Widget Product"), findsOneWidget);
     },
   );
 }
