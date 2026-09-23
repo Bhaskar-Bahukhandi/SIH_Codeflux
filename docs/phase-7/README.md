@@ -147,14 +147,22 @@ The current Phase 7 branch now contains two bounded implementation layers.
 - transport/API failure classification;
 - timeout outcome-unknown protection;
 - reconciliation-aware headless sync coordinator;
+- replay-aware HTTP executor/reconciler for inspection creation, capture upload and Officer review creation;
+- local evidence SHA-256/size validation before capture upload;
+- bounded startup queue draining and interrupted-sync recovery;
+- atomic projection of queue state onto local inspection/evidence state;
 - checksum-preserving local evidence storage;
 - evidence deletion gate requiring remote-durability confirmation;
 - SQLite FFI tests for queue persistence, ordering, retries, restart recovery and local draft survival;
+- HTTP adapter contract tests;
+- an offline -> restart -> reconnect scenario test with a simulated response lost after remote capture application;
 - a dedicated `Mobile Offline Tests` workflow.
 
 No database migration is introduced in this slice, avoiding a revision collision with PR #35.
 
-The actual HTTP/API sync executor, camera/UI integration and end-to-end offline/reconnect scenario are still pending.
+The camera/UI integration, authentication/token persistence, remaining mutation adapters, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
+
+The committed reconnect scenario is a deterministic sync-mechanics test using mock HTTP server state. It verifies dependency ordering, database restart persistence, response-loss reconciliation, exactly-once mutation counts in the simulated remote state, and local-evidence retention. It must not be described as real backend or field validation.
 
 Execution status remains pending: the repository Actions jobs currently terminate before runner steps are allocated, and the ChatGPT container used for this pass could not resolve GitHub for a local checkout. These limitations are not application-test failures, but they also do not count as passing validation.
 
