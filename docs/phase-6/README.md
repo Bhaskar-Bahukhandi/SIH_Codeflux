@@ -50,6 +50,16 @@ Reviews are revisioned rather than overwritten.
 
 A later review of the same rule result creates revision 2, revision 3, and so on. History remains visible.
 
+## Recheck workflow
+
+A latest `recheck_required` review may reopen the inspection from `pending_review` to `draft`.
+
+Reopening is audit-traced and records `reopened_for_recheck_at`.
+
+The inspection cannot be submitted again until a new preliminary rule-evaluation run exists after that reopen timestamp. This prevents an Officer from requesting a recheck and then immediately re-submitting the unchanged old evaluation.
+
+Historical OCR, extraction, rule-evaluation and review records remain available. New evidence produces new downstream runs rather than overwriting the old chain.
+
 ## Current boundaries
 
 This slice does not:
