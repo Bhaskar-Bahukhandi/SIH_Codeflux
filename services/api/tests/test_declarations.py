@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image
 from sqlalchemy import select
 
 from app.models.audit import AuditEvent, AuditEventType
+from app.models.declaration import DeclarationExtractionRun
 from app.models.ocr import OcrBlock, OcrRun
 from app.models.user import UserRole
 
@@ -405,6 +407,84 @@ def test_no_current_ocr_source_returns_conflict(
         response.json()["error"]["code"]
         == "inspection_current_ocr_required"
     )
+
+
+def test_declaration_client_run_id_replay_is_exactly_once(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture, derivative = upload_and_process(
+        client,
+        inspection["id"],
+        headers,
+        "front",
+    )
+    seed_ocr(
+        db_session,
+        capture_id=capture["id"],
+        derivative=derivative,
+        texts=["MRP Rs. 50.00", "Net Qty 100 g"],
+    )
+
+    run_id = str(uuid4())
+    endpoint = (
+        f"/api/v1/inspections/{inspection['id']}/declarations/extract"
+    )
+    first = client.post(endpoint, headers=headers, json={"id": run_id})
+    replay = client.post(endpoint, headers=headers, json={"id": run_id})
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert first.json()["run"]["id"] == run_id
+    assert replay.json() == first.json()
+    assert (
+        len(
+            list(
+                db_session.scalars(
+                    select(DeclarationExtractionRun)
+                ).all()
+            )
+        )
+        == 1
+    )
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type
+                == AuditEventType.DECLARATION_EXTRACTION_COMPLETED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+
+    exact = client.get(
+        (
+            f"/api/v1/inspections/{inspection['id']}/"
+            f"declarations/runs/{run_id}"
+        ),
+        headers=headers,
+    )
+    assert exact.status_code == 200
+    assert exact.json()["run"]["id"] == run_id
+
+    other_inspection = create_inspection(client, headers)
+    conflict = client.post(
+        (
+            f"/api/v1/inspections/{other_inspection['id']}/"
+            "declarations/extract"
+        ),
+        headers=headers,
+        json={"id": run_id},
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "client_resource_id_conflict"
 
 
 def test_supervisor_can_read_latest_but_cannot_extract(
