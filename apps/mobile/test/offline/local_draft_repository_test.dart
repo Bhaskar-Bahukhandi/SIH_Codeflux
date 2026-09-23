@@ -51,6 +51,7 @@ void main() {
     );
     expect(inspection.productName, "Local Product");
     expect(inspection.productIdentifier, "LOCAL-001");
+    expect(inspection.officerUserId, "officer-1");
     expect(inspection.syncState, SyncState.localOnly);
 
     await drafts.registerEvidence(
@@ -75,6 +76,7 @@ void main() {
 
     expect(reopenedInspection, isNotNull);
     expect(reopenedInspection!.productName, "Local Product");
+    expect(reopenedInspection.officerUserId, "officer-1");
     expect(reopenedInspection.syncState, SyncState.localOnly);
     expect(reopenedEvidence, isNotNull);
     expect(reopenedEvidence!.inspectionId, inspectionId);
@@ -105,6 +107,15 @@ void main() {
         id: inspectionId,
         officerUserId: "officer-1",
         productName: "Different Product",
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    await expectLater(
+      drafts.createInspection(
+        id: inspectionId,
+        officerUserId: "officer-2",
+        productName: "Product",
       ),
       throwsA(isA<StateError>()),
     );
