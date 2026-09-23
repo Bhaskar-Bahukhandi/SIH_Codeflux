@@ -102,14 +102,21 @@ def _capture_references(
     extraction_run: DeclarationExtractionRun,
     declaration_type: str,
 ) -> list[dict[str, Any]]:
+    try:
+        declaration_enum = DeclarationType(declaration_type)
+    except ValueError:
+        raise conflict(
+            "rule_evidence_chain_invalid",
+            "The preliminary rule result uses an unsupported declaration type.",
+        )
+
     observed_capture_ids = list(
         dict.fromkeys(
             db.scalars(
                 select(DeclarationObservation.capture_id)
                 .where(
                     DeclarationObservation.extraction_run_id == extraction_run.id,
-                    DeclarationObservation.declaration_type
-                    == DeclarationType(declaration_type),
+                    DeclarationObservation.declaration_type == declaration_enum,
                 )
                 .order_by(
                     DeclarationObservation.capture_id.asc(),
@@ -132,10 +139,19 @@ def _capture_references(
     captures = list(
         db.scalars(
             select(Capture)
-            .where(Capture.id.in_(capture_ids))
+            .where(
+                Capture.id.in_(capture_ids),
+                Capture.inspection_id == extraction_run.inspection_id,
+            )
             .order_by(Capture.id.asc())
         ).all()
     )
+    if {capture.id for capture in captures} != set(capture_ids):
+        raise conflict(
+            "rule_evidence_chain_invalid",
+            "One or more evidence captures do not belong to this inspection.",
+        )
+
     return [
         {
             "capture_id": capture.id,
@@ -153,7 +169,14 @@ def _resolve_rule(
     result: RuleEvaluationResult,
     review: OfficerRuleReview,
     extraction_run: DeclarationExtractionRun,
+    officer: User,
 ) -> ResolvedRule:
+    if review.officer_user_id != officer.id:
+        raise conflict(
+            "officer_review_chain_invalid",
+            "The latest review was not recorded by the inspection's owning Officer.",
+        )
+
     if review.decision is OfficerReviewDecision.RECHECK_REQUIRED:
         raise conflict(
             "officer_recheck_unresolved",
@@ -202,6 +225,17 @@ def _resolve_rule(
             "The latest Officer review does not resolve this preliminary result for finalization.",
         )
 
+    evidence = _capture_references(
+        db,
+        extraction_run=extraction_run,
+        declaration_type=result.declaration_type,
+    )
+    if not evidence:
+        raise conflict(
+            "rule_evidence_reference_required",
+            "The reviewed result has no package-image evidence reference.",
+        )
+
     return ResolvedRule(
         result=result,
         review=review,
@@ -209,11 +243,7 @@ def _resolve_rule(
         machine_value=machine_value,
         resolved_value=resolved_value,
         resolution=resolution,
-        evidence=_capture_references(
-            db,
-            extraction_run=extraction_run,
-            declaration_type=result.declaration_type,
-        ),
+        evidence=evidence,
     )
 
 
@@ -268,6 +298,7 @@ def build_finalization_snapshot(
             result=result,
             review=latest_reviews[result.id],
             extraction_run=extraction_run,
+            officer=officer,
         )
         for result in results
     ]
