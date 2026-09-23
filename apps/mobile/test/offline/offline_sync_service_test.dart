@@ -34,6 +34,18 @@ class SequenceExecutor implements SyncOperationExecutor {
   }
 }
 
+class AppliedReconciler implements SyncOperationReconciler {
+  final List<String> reconciledIds = <String>[];
+
+  @override
+  Future<ReconciliationResult> reconcile(SyncOperation operation) async {
+    reconciledIds.add(operation.id);
+    return ReconciliationResult.applied(
+      remoteResourceId: operation.resourceId,
+    );
+  }
+}
+
 void main() {
   setUpAll(() {
     sqfliteFfiInit();
@@ -133,7 +145,7 @@ void main() {
     );
   });
 
-  test("startup recovery converts interrupted work and processes it", () async {
+  test("startup recovery reconciles interrupted work before replay", () async {
     final root = await Directory.systemTemp.createTemp(
       "codeflux_sync_recovery_",
     );
@@ -177,10 +189,13 @@ void main() {
     final claimed = await queue.claimNextReady(now);
     expect(claimed!.state, SyncState.syncing);
 
+    final executor = SequenceExecutor(<String>{});
+    final reconciler = AppliedReconciler();
     final service = OfflineSyncService(
       coordinator: SyncCoordinator(
         queue: queue,
-        executor: SequenceExecutor(<String>{}),
+        executor: executor,
+        reconciler: reconciler,
       ),
     );
     final summary = await service.recoverAndDrain(
@@ -188,9 +203,16 @@ void main() {
     );
 
     expect(summary.recoveredInterrupted, 1);
+    expect(summary.processed, 1);
     expect(summary.synced, 1);
+    expect(reconciler.reconciledIds, <String>[operationId]);
+    expect(executor.executedIds, isEmpty);
     expect(
       (await queue.getById(operationId))!.state,
+      SyncState.synced,
+    );
+    expect(
+      (await drafts.getInspection(inspectionId))!.syncState,
       SyncState.synced,
     );
   });
