@@ -520,7 +520,7 @@ class SyncQueueRepository {
     String? errorMessage,
     required DateTime updatedAt,
   }) async {
-    String? table;
+    final String table;
     if (operation.type == SyncOperationType.createInspection) {
       table = "local_inspections";
     } else if (operation.type == SyncOperationType.uploadCapture) {
