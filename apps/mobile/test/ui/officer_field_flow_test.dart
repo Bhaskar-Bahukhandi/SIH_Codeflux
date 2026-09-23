@@ -19,6 +19,7 @@ import "package:codeflux_mobile/offline/storage/local_evidence_store.dart";
 import "package:codeflux_mobile/offline/sync/offline_sync_service.dart";
 import "package:codeflux_mobile/offline/sync/sync_coordinator.dart";
 import "package:codeflux_mobile/offline/workflow/field_inspection_workflow_service.dart";
+import "package:codeflux_mobile/ui/inspection_screen.dart";
 import "package:codeflux_mobile/ui/workspace_screen.dart";
 
 class MemorySecureStore implements SecureKeyValueStore {
@@ -54,6 +55,94 @@ class FakeAcquisition implements EvidenceAcquisitionService {
       const <AcquiredEvidence>[];
 }
 
+class FieldUiHarness {
+  FieldUiHarness({
+    required this.root,
+    required this.database,
+    required this.drafts,
+    required this.queue,
+    required this.workspace,
+    required this.acquisition,
+    required this.captureCoordinator,
+    required this.officer,
+  });
+
+  final Directory root;
+  final OfflineDatabase database;
+  final LocalDraftRepository drafts;
+  final SyncQueueRepository queue;
+  final OfficerWorkspaceService workspace;
+  final FakeAcquisition acquisition;
+  final FieldCaptureCoordinator captureCoordinator;
+  final OfficerSessionContext officer;
+
+  static Future<FieldUiHarness> create() async {
+    final root = await Directory.systemTemp.createTemp(
+      "codeflux_widget_flow_",
+    );
+    final database = await OfflineDatabase.openAt(
+      p.join(root.path, "offline.sqlite3"),
+      factory: databaseFactoryFfi,
+    );
+    final drafts = LocalDraftRepository(database);
+    final queue = SyncQueueRepository(database);
+    final sessionStore = OfficerSessionStore(MemorySecureStore());
+    final officer = OfficerSessionContext(
+      userId: "officer-1",
+      fullName: "Widget Officer",
+      email: "officer@example.test",
+      role: "officer",
+      accessToken: "token",
+      expiresAt: DateTime.utc(2026, 9, 24),
+    );
+    await sessionStore.save(officer);
+
+    final workflow = FieldInspectionWorkflowService(
+      drafts: drafts,
+      queue: queue,
+      evidenceStore: LocalEvidenceStore(
+        Directory(p.join(root.path, "evidence")),
+      ),
+    );
+    final workspace = OfficerWorkspaceService(
+      sessionStore: sessionStore,
+      drafts: drafts,
+      queue: queue,
+      workflow: workflow,
+      syncService: OfflineSyncService(
+        coordinator: SyncCoordinator(
+          queue: queue,
+          executor: NoopExecutor(),
+        ),
+      ),
+    );
+    final acquisition = FakeAcquisition();
+    final captureCoordinator = FieldCaptureCoordinator(
+      workspace: workspace,
+      acquisition: acquisition,
+      pendingCaptures: PendingCaptureRepository(database),
+    );
+
+    return FieldUiHarness(
+      root: root,
+      database: database,
+      drafts: drafts,
+      queue: queue,
+      workspace: workspace,
+      acquisition: acquisition,
+      captureCoordinator: captureCoordinator,
+      officer: officer,
+    );
+  }
+
+  Future<void> dispose() async {
+    await database.close();
+    if (await root.exists()) {
+      await root.delete(recursive: true);
+    }
+  }
+}
+
 Future<void> pumpUntilFound(
   WidgetTester tester,
   Finder finder, {
@@ -68,150 +157,132 @@ Future<void> pumpUntilFound(
   throw TestFailure("Timed out waiting for expected widget.");
 }
 
+Future<void> unmountApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
+}
+
 void main() {
   setUpAll(sqfliteFfiInit);
 
-  testWidgets(
-    "Officer creates inspection, captures front image and queues review",
-    (tester) async {
-      final root = await Directory.systemTemp.createTemp(
-        "codeflux_widget_flow_",
-      );
-      final database = await OfflineDatabase.openAt(
-        p.join(root.path, "offline.sqlite3"),
-        factory: databaseFactoryFfi,
-      );
-      addTearDown(() async {
-        await database.close();
-        if (await root.exists()) {
-          await root.delete(recursive: true);
-        }
-      });
+  testWidgets("Officer creates an inspection and opens its detail screen", (
+    tester,
+  ) async {
+    final harness = await FieldUiHarness.create();
+    addTearDown(harness.dispose);
 
-      final drafts = LocalDraftRepository(database);
-      final queue = SyncQueueRepository(database);
-      final sessionStore = OfficerSessionStore(MemorySecureStore());
-      final officer = OfficerSessionContext(
-        userId: "officer-1",
-        fullName: "Widget Officer",
-        email: "officer@example.test",
-        role: "officer",
-        accessToken: "token",
-        expiresAt: DateTime.utc(2026, 9, 24),
-      );
-      await sessionStore.save(officer);
-
-      final workflow = FieldInspectionWorkflowService(
-        drafts: drafts,
-        queue: queue,
-        evidenceStore: LocalEvidenceStore(
-          Directory(p.join(root.path, "evidence")),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceScreen(
+          officer: harness.officer,
+          workspace: harness.workspace,
+          captureCoordinator: harness.captureCoordinator,
+          onSignedOut: () {},
         ),
-      );
-      final workspace = OfficerWorkspaceService(
-        sessionStore: sessionStore,
-        drafts: drafts,
-        queue: queue,
-        workflow: workflow,
-        syncService: OfflineSyncService(
-          coordinator: SyncCoordinator(
-            queue: queue,
-            executor: NoopExecutor(),
-          ),
+      ),
+    );
+    await pumpUntilFound(tester, find.text("Widget Officer"));
+
+    expect(
+      find.text(
+        "No inspections on this device yet.\n"
+        "Create one to start capturing package evidence.",
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text("New inspection"));
+    await pumpUntilFound(tester, find.text("New inspection"));
+
+    final formFields = find.byType(TextFormField);
+    await tester.enterText(formFields.at(0), "Widget Product");
+    await tester.enterText(formFields.at(1), "SKU-WIDGET");
+    await tester.tap(find.widgetWithText(FilledButton, "Create"));
+
+    await pumpUntilFound(tester, find.text("Add image"));
+    expect(find.text("Widget Product"), findsWidgets);
+
+    await tester.pageBack();
+    await pumpUntilFound(tester, find.text("My inspections"));
+    expect(find.text("Widget Product"), findsOneWidget);
+
+    final inspections = await harness.workspace.listInspections();
+    expect(inspections.length, 1);
+    expect(inspections.single.inspection.productIdentifier, "SKU-WIDGET");
+
+    await unmountApp(tester);
+  });
+
+  testWidgets("Officer captures package evidence and queues review", (
+    tester,
+  ) async {
+    final harness = await FieldUiHarness.create();
+    addTearDown(harness.dispose);
+
+    final created = await harness.workspace.createInspection(
+      productName: "Widget Product",
+      productIdentifier: "SKU-WIDGET",
+    );
+    final inspectionId = created.inspection.id;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InspectionScreen(
+          inspectionId: inspectionId,
+          workspace: harness.workspace,
+          captureCoordinator: harness.captureCoordinator,
         ),
-      );
-      final acquisition = FakeAcquisition();
-      final captureCoordinator = FieldCaptureCoordinator(
-        workspace: workspace,
-        acquisition: acquisition,
-        pendingCaptures: PendingCaptureRepository(database),
-      );
+      ),
+    );
+    await pumpUntilFound(tester, find.text("Add image"));
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: WorkspaceScreen(
-            officer: officer,
-            workspace: workspace,
-            captureCoordinator: captureCoordinator,
-            onSignedOut: () {},
-          ),
-        ),
-      );
-      await pumpUntilFound(tester, find.text("Widget Officer"));
+    harness.acquisition.next = AcquiredEvidence(
+      bytes: base64Decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+        "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ),
+      filename: "front.png",
+    );
 
-      expect(find.text("Widget Officer"), findsOneWidget);
-      expect(find.text("No inspections on this device yet.\n"
-          "Create one to start capturing package evidence."), findsOneWidget);
+    await tester.tap(find.text("Add image"));
+    await pumpUntilFound(tester, find.text("Which side are you capturing?"));
+    await tester.tap(find.text("Front"));
+    await pumpUntilFound(tester, find.text("Take photo"));
+    await tester.tap(find.text("Take photo"));
+    await pumpUntilFound(
+      tester,
+      find.textContaining("image saved locally and queued"),
+    );
 
-      await tester.tap(find.text("New inspection"));
-      await pumpUntilFound(tester, find.text("New inspection"));
+    expect(find.text("Front"), findsOneWidget);
+    expect(
+      find.textContaining("image saved locally and queued"),
+      findsOneWidget,
+    );
 
-      final formFields = find.byType(TextFormField);
-      await tester.enterText(formFields.at(0), "Widget Product");
-      await tester.enterText(formFields.at(1), "SKU-WIDGET");
-      await tester.tap(find.widgetWithText(FilledButton, "Create"));
-      await pumpUntilFound(tester, find.text("Add image"));
+    await tester.tap(find.text("Queue preliminary review"));
+    await pumpUntilFound(tester, find.text("Applicability context"));
+    await tester.tap(
+      find.widgetWithText(FilledButton, "Queue for review"),
+    );
+    await pumpUntilFound(
+      tester,
+      find.textContaining("have been queued"),
+    );
 
-      expect(find.text("Widget Product"), findsWidgets);
-      expect(find.text("No package images saved yet. Capture multiple views "
-          "so declarations can be checked against the available evidence."),
-          findsOneWidget);
+    expect(
+      (await harness.workspace.listEvidence(inspectionId)).length,
+      1,
+    );
+    expect(
+      (await harness.queue.listForInspection(inspectionId)).length,
+      8,
+    );
+    expect(
+      find.textContaining("have been queued"),
+      findsOneWidget,
+    );
 
-      acquisition.next = AcquiredEvidence(
-        bytes: base64Decode(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
-          "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-        ),
-        filename: "front.png",
-      );
-
-      await tester.tap(find.text("Add image"));
-      await pumpUntilFound(tester, find.text("Which side are you capturing?"));
-      await tester.tap(find.text("Front"));
-      await pumpUntilFound(tester, find.text("Take photo"));
-      await tester.tap(find.text("Take photo"));
-      await pumpUntilFound(
-        tester,
-        find.textContaining("image saved locally and queued"),
-      );
-
-      expect(find.text("Front"), findsOneWidget);
-      expect(
-        find.textContaining("image saved locally and queued"),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.text("Queue preliminary review"));
-      await pumpUntilFound(tester, find.text("Applicability context"));
-      expect(find.text("Applicability context"), findsOneWidget);
-      await tester.tap(
-        find.widgetWithText(FilledButton, "Queue for review"),
-      );
-      await pumpUntilFound(
-        tester,
-        find.textContaining("have been queued"),
-      );
-
-      final inspections = await workspace.listInspections();
-      expect(inspections.length, 1);
-      final inspectionId = inspections.single.inspection.id;
-
-      expect(
-        (await workspace.listEvidence(inspectionId)).length,
-        1,
-      );
-      expect(
-        (await queue.listForInspection(inspectionId)).length,
-        8,
-      );
-      expect(
-        find.textContaining("have been queued"),
-        findsOneWidget,
-      );
-
-      await tester.pageBack();
-      await pumpUntilFound(tester, find.text("My inspections"));
-      expect(find.text("Widget Product"), findsOneWidget);
-    },
-  );
+    await unmountApp(tester);
+  });
 }
