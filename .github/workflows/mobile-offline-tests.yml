@@ -16,6 +16,7 @@ on:
 jobs:
   mobile-offline-tests:
     runs-on: ubuntu-22.04
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apps/mobile
@@ -40,5 +41,14 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Test offline foundation
-        run: flutter test
+      - name: Test offline core
+        run: timeout --signal=TERM 8m flutter test test/offline --reporter expanded
+
+      - name: Test application services
+        run: |
+          timeout --signal=TERM 4m flutter test test/auth --reporter expanded
+          timeout --signal=TERM 4m flutter test test/app --reporter expanded
+          timeout --signal=TERM 4m flutter test test/capture --reporter expanded
+
+      - name: Test Officer UI
+        run: timeout --signal=TERM 6m flutter test test/ui --reporter expanded
