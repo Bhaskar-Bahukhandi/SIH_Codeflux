@@ -15,6 +15,7 @@ from app.models.declaration import (
     DeclarationExtractionRun,
     DeclarationObservation,
     DeclarationSummary,
+    DeclarationType,
 )
 from app.models.inspection import Inspection
 from app.models.officer_review import OfficerReviewDecision, OfficerRuleReview
@@ -91,7 +92,8 @@ def _capture_references(
                 select(DeclarationObservation.capture_id)
                 .where(
                     DeclarationObservation.extraction_run_id == extraction_run.id,
-                    DeclarationObservation.declaration_type == declaration_type,
+                    DeclarationObservation.declaration_type
+                    == DeclarationType(declaration_type),
                 )
                 .order_by(
                     DeclarationObservation.capture_id.asc(),
