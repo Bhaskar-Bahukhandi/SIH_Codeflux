@@ -74,10 +74,26 @@ def _summary_for_result(
     db: Session,
     *,
     result: RuleEvaluationResult,
+    extraction_run: DeclarationExtractionRun,
 ) -> DeclarationSummary | None:
     if result.evidence_summary_id is None:
         return None
-    return db.get(DeclarationSummary, result.evidence_summary_id)
+
+    summary = db.get(DeclarationSummary, result.evidence_summary_id)
+    if summary is None:
+        raise conflict(
+            "rule_evidence_chain_invalid",
+            "A preliminary rule result references declaration evidence that no longer exists.",
+        )
+    if (
+        summary.extraction_run_id != extraction_run.id
+        or summary.declaration_type.value != result.declaration_type
+    ):
+        raise conflict(
+            "rule_evidence_chain_invalid",
+            "A preliminary rule result references declaration evidence from a different source chain.",
+        )
+    return summary
 
 
 def _capture_references(
@@ -144,7 +160,11 @@ def _resolve_rule(
             "A latest Officer review still requires recheck before finalization.",
         )
 
-    summary = _summary_for_result(db, result=result)
+    summary = _summary_for_result(
+        db,
+        result=result,
+        extraction_run=extraction_run,
+    )
     machine_value = summary.canonical_value if summary is not None else None
 
     if review.decision is OfficerReviewDecision.CORRECTED:
