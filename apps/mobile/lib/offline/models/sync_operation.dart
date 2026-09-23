@@ -51,7 +51,7 @@ String canonicalJsonEncode(Object? value) {
   return jsonEncode(_canonicalize(value));
 }
 
-String payloadSha256(Map<String, Object?> payload) {
+String computePayloadSha256(Map<String, Object?> payload) {
   return sha256.convert(utf8.encode(canonicalJsonEncode(payload))).toString();
 }
 
@@ -92,7 +92,7 @@ class SyncOperation {
       type: type,
       resourceId: resourceId,
       payload: Map<String, Object?>.unmodifiable(payload),
-      payloadSha256: payloadSha256(payload),
+      payloadSha256: computePayloadSha256(payload),
       dependencyIds: List<String>.unmodifiable(dependencyIds),
       state: SyncState.queued,
       attemptCount: 0,
