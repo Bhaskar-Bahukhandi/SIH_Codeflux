@@ -6,7 +6,11 @@ import pytest
 from PIL import Image
 
 from app.core.config import Settings
-from app.evaluation.phase2 import (\n    evaluate_phase2_manifest,\n    load_phase2_manifest,\n    phase2_gate_failures,\n)
+from app.evaluation.phase2 import (
+    evaluate_phase2_manifest,
+    load_phase2_manifest,
+    phase2_gate_failures,
+)
 
 
 def blank_jpeg(path: Path) -> None:
