@@ -107,6 +107,11 @@ void main() {
       SyncState.queued,
     );
 
+    final initiallyQueued = await queue.inspectionSyncSummary(inspectionId);
+    expect(initiallyQueued.overallState, SyncState.queued);
+    expect(initiallyQueued.totalOperations, 2);
+    expect(initiallyQueued.isFullySynced, isFalse);
+
     final first = await queue.claimNextReady(now.add(const Duration(seconds: 2)));
     expect(first, isNotNull);
     expect(first!.id, createOperationId);
@@ -126,6 +131,11 @@ void main() {
     expect(syncedInspection!.syncState, SyncState.synced);
     expect(syncedInspection.remoteId, inspectionId);
 
+    final partiallySynced = await queue.inspectionSyncSummary(inspectionId);
+    expect(partiallySynced.localResourceState, SyncState.synced);
+    expect(partiallySynced.overallState, SyncState.queued);
+    expect(partiallySynced.isFullySynced, isFalse);
+
     final second = await queue.claimNextReady(now.add(const Duration(seconds: 4)));
     expect(second, isNotNull);
     expect(second!.id, captureOperationId);
@@ -134,6 +144,20 @@ void main() {
       (await drafts.getEvidence(captureId))!.syncState,
       SyncState.syncing,
     );
+    expect(
+      (await queue.inspectionSyncSummary(inspectionId)).overallState,
+      SyncState.syncing,
+    );
+
+    await queue.markSynced(
+      captureOperationId,
+      remoteResourceId: captureId,
+      now: now.add(const Duration(seconds: 5)),
+    );
+    final fullySynced = await queue.inspectionSyncSummary(inspectionId);
+    expect(fullySynced.overallState, SyncState.synced);
+    expect(fullySynced.isFullySynced, isTrue);
+    expect(fullySynced.count(SyncState.synced), 2);
   });
 
   test("blocked predecessor explicitly blocks dependent work", () async {
