@@ -31,7 +31,7 @@ The core workflow is:
 
 ## Current status
 
-**Phase 5 — Versioned preliminary rule-engine foundation**
+**Phase 6 — Officer verification layer**
 
 Implemented foundation now includes:
 
@@ -45,11 +45,14 @@ Implemented foundation now includes:
 - rule-pack ID/version/SHA-256 persisted on every evaluation;
 - officer-supplied applicability context persisted with the evaluation;
 - stale-extraction protection;
-- safe preliminary states that do not turn OCR non-detection into an automatic violation.
+- safe preliminary states that do not turn OCR non-detection into an automatic violation;
+- append-only Officer review records for the latest preliminary rule results;
+- explicit accepted / corrected / recheck-required review decisions;
+- structured Officer corrections stored separately from immutable machine evidence.
 
-The project still does **not** claim broad declaration coverage, physical font-size measurement, confirmed-absence findings, final legal approval, PDF inspection reports or offline synchronization.
+The project still does **not** claim broad declaration coverage, physical font-size measurement, final violation findings, inspection finalization, PDF inspection reports or offline synchronization.
 
-A Phase 5 pass means a specific preliminary declaration-evidence check passed under the recorded rule pack/context. It is not a certification that the whole package is legally compliant.
+A preliminary rule-engine pass remains only an evidence-check result. Phase 6 adds human review without converting that review into a final legal verdict.
 
 Real-package image-quality/geometry, OCR and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
 
