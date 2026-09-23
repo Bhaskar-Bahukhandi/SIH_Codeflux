@@ -217,8 +217,12 @@ void main() {
     await tester.pageBack();
     debugPrint("field-ui:create:09-back-requested");
     await pumpUntilFound(tester, find.text("My inspections"));
+    await tester.pump(const Duration(milliseconds: 500));
     debugPrint("field-ui:create:10-workspace-returned");
-    expect(find.text("Widget Product"), findsOneWidget);
+    expect(
+      find.widgetWithText(ListTile, "Widget Product"),
+      findsOneWidget,
+    );
 
     final inspections = (await tester.runAsync(
       harness.workspace.listInspections,
