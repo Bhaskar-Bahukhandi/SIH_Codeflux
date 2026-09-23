@@ -12,3 +12,4 @@ export "sync/sync_coordinator.dart";
 export "sync/codeflux_api_sync_adapter.dart";
 export "sync/sync_operation_factory.dart";
 export "sync/offline_sync_service.dart";
+export "sync/session_bound_sync_adapter.dart";
