@@ -56,9 +56,9 @@ Run from `apps/mobile`:
     flutter analyze
     flutter test
 
-The repository workflow `.github/workflows/mobile-offline-tests.yml` runs the same analysis/test gate on Flutter 3.38.0.
+The repository workflow `.github/workflows/mobile-offline-tests.yml` runs the same analysis/test gate on Flutter 3.47.5.
 
-At the current repository infrastructure state, GitHub-hosted jobs are still terminating before step allocation. A zero-step Actions failure is not counted as a Flutter test failure or a passing validation result.
+GitHub-hosted runner allocation has been restored. Mobile validation now depends on real `flutter pub get`, `flutter analyze`, and `flutter test` results.
 
 
 ## Current UI slice
