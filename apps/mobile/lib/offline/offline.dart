@@ -1,3 +1,4 @@
+export "models/inspection_sync_summary.dart";
 export "models/local_records.dart";
 export "models/sync_operation.dart";
 export "models/sync_state.dart";
