@@ -97,6 +97,16 @@ class SyncQueueRepository {
     return rows.map(_fromRow).toList(growable: false);
   }
 
+  Future<List<SyncOperation>> listReconciliationRequired() async {
+    final rows = await offlineDatabase.database.query(
+      "sync_operations",
+      where: "state = ? AND next_attempt_at IS NULL",
+      whereArgs: <Object?>[SyncState.retryRequired.dbValue],
+      orderBy: "updated_at ASC, id ASC",
+    );
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
   Future<SyncOperation?> claimNextReady(DateTime now) {
     final timestamp = now.toUtc();
     return offlineDatabase.database.transaction((txn) async {
@@ -418,7 +428,8 @@ class SyncQueueRepository {
         whereArgs: <Object?>[SyncState.syncing.dbValue],
       );
       const interruptionMessage =
-          "The previous sync attempt ended before completion was recorded.";
+          "The previous sync attempt ended before completion was recorded. "
+          "The remote outcome is unknown and must be reconciled before replay.";
 
       for (final row in rows) {
         final operation = _fromRow(row);
@@ -430,8 +441,8 @@ class SyncQueueRepository {
           "sync_operations",
           <String, Object?>{
             "state": SyncState.retryRequired.dbValue,
-            "next_attempt_at": timestamp.toIso8601String(),
-            "last_error_kind": "process_interrupted",
+            "next_attempt_at": null,
+            "last_error_kind": "process_interrupted_outcome_unknown",
             "last_error_code": null,
             "last_error_message": interruptionMessage,
             "updated_at": timestamp.toIso8601String(),
@@ -443,7 +454,7 @@ class SyncQueueRepository {
           txn,
           operation,
           SyncState.retryRequired,
-          errorKind: "process_interrupted",
+          errorKind: "process_interrupted_outcome_unknown",
           errorMessage: interruptionMessage,
           updatedAt: timestamp,
         );
