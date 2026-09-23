@@ -39,6 +39,10 @@ def upgrade() -> None:
         sa.Column("corrected_value", sa.JSON(), nullable=True),
         sa.Column("note", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "revision >= 1",
+            name="ck_officer_rule_reviews_revision_positive",
+        ),
         sa.ForeignKeyConstraint(
             ["inspection_id"],
             ["inspections.id"],
