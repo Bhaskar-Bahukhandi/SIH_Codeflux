@@ -421,9 +421,9 @@ class FieldInspectionWorkflowService {
   }
 
   void _requireOfficer(OfficerSessionContext officer) {
-    if (officer.tokenExpired()) {
+    if (officer.userId.trim().isEmpty) {
       throw StateError(
-        "Officer session is expired. Local edits require a valid signed-in Officer context.",
+        "Local field work requires a persisted authenticated Officer identity.",
       );
     }
     if (officer.role.toLowerCase() != "officer") {
