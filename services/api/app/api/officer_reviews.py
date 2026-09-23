@@ -33,6 +33,45 @@ router = APIRouter(
 )
 
 
+def _normalized_corrected_value(
+    payload: OfficerRuleReviewCreate,
+    result: RuleEvaluationResult,
+) -> dict | None:
+    if payload.decision is not OfficerReviewDecision.CORRECTED:
+        return None
+    return normalize_officer_corrected_value(
+        declaration_type=result.declaration_type,
+        value=payload.corrected_value or {},
+    )
+
+
+def _matches_review_replay(
+    review: OfficerRuleReview,
+    *,
+    inspection_id: str,
+    officer_id: str,
+    result_id: str,
+    decision: OfficerReviewDecision,
+    corrected_value: dict | None,
+    note: str | None,
+) -> bool:
+    return (
+        review.inspection_id == inspection_id
+        and review.officer_user_id == officer_id
+        and review.rule_evaluation_result_id == result_id
+        and review.decision == decision
+        and review.corrected_value == corrected_value
+        and review.note == note
+    )
+
+
+def _raise_client_review_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client review ID is already associated with different review data.",
+    )
+
+
 @router.post(
     "/{rule_evaluation_result_id}",
     response_model=OfficerRuleReviewRead,
@@ -45,6 +84,34 @@ def review_rule_result(
     officer: User = Depends(require_officer),
 ) -> OfficerRuleReview:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    client_review_id = str(payload.id) if payload.id is not None else None
+
+    if client_review_id is not None:
+        existing = db.get(OfficerRuleReview, client_review_id)
+        if existing is not None:
+            result_for_replay = db.get(
+                RuleEvaluationResult,
+                rule_evaluation_result_id,
+            )
+            if result_for_replay is None:
+                _raise_client_review_id_conflict()
+
+            corrected_value = _normalized_corrected_value(
+                payload,
+                result_for_replay,
+            )
+            if _matches_review_replay(
+                existing,
+                inspection_id=inspection.id,
+                officer_id=officer.id,
+                result_id=rule_evaluation_result_id,
+                decision=payload.decision,
+                corrected_value=corrected_value,
+                note=payload.note,
+            ):
+                return existing
+            _raise_client_review_id_conflict()
+
     require_pending_review(inspection)
 
     latest_run = latest_rule_evaluation_run(
@@ -77,12 +144,7 @@ def review_rule_result(
             "Rule evaluation result not found in the latest inspection evaluation.",
         )
 
-    corrected_value = payload.corrected_value
-    if payload.decision is OfficerReviewDecision.CORRECTED:
-        corrected_value = normalize_officer_corrected_value(
-            declaration_type=result.declaration_type,
-            value=payload.corrected_value or {},
-        )
+    corrected_value = _normalized_corrected_value(payload, result)
 
     latest_revision = db.scalar(
         select(func.max(OfficerRuleReview.revision)).where(
@@ -91,16 +153,20 @@ def review_rule_result(
     )
     revision = (latest_revision or 0) + 1
 
-    review = OfficerRuleReview(
-        inspection_id=inspection.id,
-        officer_user_id=officer.id,
-        rule_evaluation_run_id=latest_run.id,
-        rule_evaluation_result_id=result.id,
-        revision=revision,
-        decision=payload.decision,
-        corrected_value=corrected_value,
-        note=payload.note,
-    )
+    review_kwargs = {
+        "inspection_id": inspection.id,
+        "officer_user_id": officer.id,
+        "rule_evaluation_run_id": latest_run.id,
+        "rule_evaluation_result_id": result.id,
+        "revision": revision,
+        "decision": payload.decision,
+        "corrected_value": corrected_value,
+        "note": payload.note,
+    }
+    if client_review_id is not None:
+        review_kwargs["id"] = client_review_id
+
+    review = OfficerRuleReview(**review_kwargs)
     db.add(review)
 
     try:
@@ -124,6 +190,22 @@ def review_rule_result(
         db.commit()
     except IntegrityError:
         db.rollback()
+
+        if client_review_id is not None:
+            existing = db.get(OfficerRuleReview, client_review_id)
+            if existing is not None:
+                if _matches_review_replay(
+                    existing,
+                    inspection_id=inspection.id,
+                    officer_id=officer.id,
+                    result_id=result.id,
+                    decision=payload.decision,
+                    corrected_value=corrected_value,
+                    note=payload.note,
+                ):
+                    return existing
+                _raise_client_review_id_conflict()
+
         raise conflict(
             "officer_review_revision_conflict",
             "The review changed concurrently. Reload the review history and retry.",

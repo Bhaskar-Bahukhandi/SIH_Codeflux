@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -12,6 +13,7 @@ class RuleEvaluationContextInput(BaseModel):
 
 
 class RuleEvaluationRequest(BaseModel):
+    id: UUID | None = None
     context: RuleEvaluationContextInput
 
 

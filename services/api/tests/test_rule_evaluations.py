@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image
 from sqlalchemy import select
 
 from app.models.audit import AuditEvent, AuditEventType
 from app.models.ocr import OcrBlock, OcrRun
+from app.models.rule_evaluation import RuleEvaluationRun
 from app.models.user import UserRole
 
 
@@ -100,11 +102,16 @@ def extract(client, inspection_id, headers):
     return response.json()
 
 
-def evaluate(client, inspection_id, headers, context=None):
+def evaluate(client, inspection_id, headers, context=None, *, run_id=None):
+    payload = {
+        "context": context if context is not None else SUPPORTED_CONTEXT,
+    }
+    if run_id is not None:
+        payload["id"] = run_id
     return client.post(
         f"/api/v1/inspections/{inspection_id}/rule-evaluations/evaluate",
         headers=headers,
-        json={"context": context if context is not None else SUPPORTED_CONTEXT},
+        json=payload,
     )
 
 
@@ -331,6 +338,95 @@ def test_stale_extraction_is_rejected(
     assert response.json()["error"]["code"] == (
         "current_declaration_extraction_required"
     )
+
+
+def test_rule_evaluation_client_run_id_replay_is_exactly_once(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture, derivative = upload_and_process(
+        client,
+        inspection["id"],
+        headers,
+        "front",
+    )
+    seed_ocr(
+        db_session,
+        capture_id=capture["id"],
+        derivative=derivative,
+        texts=["MRP Rs. 50.00", "Net Qty 100 g"],
+    )
+    extract(client, inspection["id"], headers)
+
+    run_id = str(uuid4())
+    first = evaluate(
+        client,
+        inspection["id"],
+        headers,
+        run_id=run_id,
+    )
+    replay = evaluate(
+        client,
+        inspection["id"],
+        headers,
+        run_id=run_id,
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert first.json()["run"]["id"] == run_id
+    assert replay.json() == first.json()
+    assert (
+        len(
+            list(
+                db_session.scalars(
+                    select(RuleEvaluationRun)
+                ).all()
+            )
+        )
+        == 1
+    )
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type
+                == AuditEventType.RULE_EVALUATION_COMPLETED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+
+    exact = client.get(
+        (
+            f"/api/v1/inspections/{inspection['id']}/"
+            f"rule-evaluations/runs/{run_id}"
+        ),
+        headers=headers,
+    )
+    assert exact.status_code == 200
+    assert exact.json()["run"]["id"] == run_id
+
+    changed_context = {
+        "intended_for_retail_sale": True,
+        "industrial_or_institutional_consumer": True,
+        "package_exceeds_25kg_or_25l": False,
+    }
+    conflict = evaluate(
+        client,
+        inspection["id"],
+        headers,
+        context=changed_context,
+        run_id=run_id,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "client_resource_id_conflict"
 
 
 def test_supervisor_can_read_latest_but_cannot_evaluate(

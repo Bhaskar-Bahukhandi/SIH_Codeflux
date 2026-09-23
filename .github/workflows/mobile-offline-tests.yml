@@ -1,0 +1,68 @@
+name: Mobile Offline Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "phase/**"
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-offline-tests.yml"
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-offline-tests.yml"
+
+jobs:
+  mobile-offline-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test offline core
+        run: timeout --signal=TERM 8m flutter test test/offline --reporter expanded
+
+      - name: Test application services
+        run: |
+          timeout --signal=TERM 4m flutter test test/auth --reporter expanded
+          timeout --signal=TERM 4m flutter test test/app --reporter expanded
+          timeout --signal=TERM 4m flutter test test/capture --reporter expanded
+
+      - name: Test login UI
+        run: timeout --signal=TERM 3m flutter test test/ui/login_screen_test.dart --reporter expanded
+
+      - name: Test create inspection UI
+        run: >
+          timeout --signal=TERM 1m flutter test
+          test/ui/officer_field_flow_test.dart
+          --plain-name "Officer creates an inspection and opens its detail screen"
+          --reporter expanded
+
+      - name: Test capture and review UI
+        run: >
+          timeout --signal=TERM 2m flutter test
+          test/ui/officer_field_flow_test.dart
+          --plain-name "Officer captures package evidence and queues review"
+          --reporter expanded

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
@@ -81,6 +82,27 @@ def _response_for_run(
     }
 
 
+def _matches_evaluation_replay(
+    run: RuleEvaluationRun,
+    *,
+    inspection_id: str,
+    actor_user_id: str,
+    context_snapshot: dict,
+) -> bool:
+    return (
+        run.inspection_id == inspection_id
+        and run.actor_user_id == actor_user_id
+        and run.context_snapshot == context_snapshot
+    )
+
+
+def _raise_client_evaluation_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client rule-evaluation ID is already associated with different evaluation data.",
+    )
+
+
 @router.post("/evaluate", response_model=RuleEvaluationResponse)
 def evaluate_current_declarations(
     inspection_id: str,
@@ -89,6 +111,21 @@ def evaluate_current_declarations(
     officer: User = Depends(require_officer),
 ) -> dict:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+
+    context_snapshot = payload.context.model_dump()
+    client_run_id = str(payload.id) if payload.id is not None else None
+    if client_run_id is not None:
+        existing = db.get(RuleEvaluationRun, client_run_id)
+        if existing is not None:
+            if _matches_evaluation_replay(
+                existing,
+                inspection_id=inspection.id,
+                actor_user_id=officer.id,
+                context_snapshot=context_snapshot,
+            ):
+                return _response_for_run(db, existing)
+            _raise_client_evaluation_id_conflict()
+
     require_draft(inspection)
 
     extraction_run = _latest_extraction_run(
@@ -129,19 +166,39 @@ def evaluate_current_declarations(
         summaries=summaries_by_type,
     )
 
-    run = RuleEvaluationRun(
-        inspection_id=inspection.id,
-        actor_user_id=officer.id,
-        source_extraction_run_id=extraction_run.id,
-        rule_pack_id=loaded_pack.definition.rule_pack_id,
-        rule_pack_version=loaded_pack.definition.version,
-        rule_pack_sha256=loaded_pack.sha256,
-        rule_pack_snapshot=loaded_pack.definition.model_dump(mode="json"),
-        context_snapshot=payload.context.model_dump(),
-        result_count=len(evaluated),
-    )
+    run_kwargs = {
+        "inspection_id": inspection.id,
+        "actor_user_id": officer.id,
+        "source_extraction_run_id": extraction_run.id,
+        "rule_pack_id": loaded_pack.definition.rule_pack_id,
+        "rule_pack_version": loaded_pack.definition.version,
+        "rule_pack_sha256": loaded_pack.sha256,
+        "rule_pack_snapshot": loaded_pack.definition.model_dump(mode="json"),
+        "context_snapshot": context_snapshot,
+        "result_count": len(evaluated),
+    }
+    if client_run_id is not None:
+        run_kwargs["id"] = client_run_id
+
+    run = RuleEvaluationRun(**run_kwargs)
     db.add(run)
-    db.flush()
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if client_run_id is not None:
+            existing = db.get(RuleEvaluationRun, client_run_id)
+            if existing is not None:
+                if _matches_evaluation_replay(
+                    existing,
+                    inspection_id=inspection.id,
+                    actor_user_id=officer.id,
+                    context_snapshot=context_snapshot,
+                ):
+                    return _response_for_run(db, existing)
+                _raise_client_evaluation_id_conflict()
+        raise
 
     persisted_results: list[RuleEvaluationResult] = []
     for item in evaluated:
@@ -184,6 +241,26 @@ def evaluate_current_declarations(
 
     db.commit()
     db.refresh(run)
+    return _response_for_run(db, run)
+
+
+@router.get(
+    "/runs/{run_id}",
+    response_model=RuleEvaluationResponse,
+)
+def get_rule_evaluation_run(
+    inspection_id: str,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, user)
+    run = db.get(RuleEvaluationRun, run_id)
+    if run is None or run.inspection_id != inspection.id:
+        raise not_found(
+            "rule_evaluation_not_found",
+            "Rule evaluation not found for this inspection.",
+        )
     return _response_for_run(db, run)
 
 

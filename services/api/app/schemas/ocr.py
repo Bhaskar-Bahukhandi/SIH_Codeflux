@@ -1,6 +1,11 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
+
+
+class OcrRunRequest(BaseModel):
+    id: UUID | None = None
 
 
 class OcrBlockRead(BaseModel):

@@ -1,8 +1,13 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 from app.models.declaration import DeclarationFusionStatus, DeclarationType
+
+
+class DeclarationExtractionRequest(BaseModel):
+    id: UUID | None = None
 
 
 class DeclarationExtractionRunRead(BaseModel):

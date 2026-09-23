@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
@@ -16,7 +17,10 @@ from app.models.declaration import (
 )
 from app.models.ocr import OcrBlock
 from app.models.user import User
-from app.schemas.declaration import DeclarationExtractionResultRead
+from app.schemas.declaration import (
+    DeclarationExtractionRequest,
+    DeclarationExtractionResultRead,
+)
 from app.services.audit import record_inspection_event
 from app.services.declaration_extractor import (
     DECLARATION_EXTRACTOR_VERSION,
@@ -100,13 +104,50 @@ def _result_for_run(
     }
 
 
+def _matches_extraction_replay(
+    run: DeclarationExtractionRun,
+    *,
+    inspection_id: str,
+    actor_user_id: str,
+) -> bool:
+    return (
+        run.inspection_id == inspection_id
+        and run.actor_user_id == actor_user_id
+    )
+
+
+def _raise_client_extraction_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client declaration extraction ID is already associated with different extraction data.",
+    )
+
+
 @router.post("/extract", response_model=DeclarationExtractionResultRead)
 def extract_inspection_declarations(
     inspection_id: str,
+    payload: DeclarationExtractionRequest | None = None,
     db: Session = Depends(get_db),
     officer: User = Depends(require_officer),
 ) -> dict:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+
+    client_run_id = (
+        str(payload.id)
+        if payload is not None and payload.id is not None
+        else None
+    )
+    if client_run_id is not None:
+        existing = db.get(DeclarationExtractionRun, client_run_id)
+        if existing is not None:
+            if _matches_extraction_replay(
+                existing,
+                inspection_id=inspection.id,
+                actor_user_id=officer.id,
+            ):
+                return _result_for_run(db, existing)
+            _raise_client_extraction_id_conflict()
+
     require_draft(inspection)
 
     current = collect_current_ocr_sources(
@@ -121,20 +162,39 @@ def extract_inspection_declarations(
             "Run current OCR on at least one inspection capture before extraction.",
         )
 
-    run = DeclarationExtractionRun(
-        inspection_id=inspection.id,
-        actor_user_id=officer.id,
-        extractor_version=DECLARATION_EXTRACTOR_VERSION,
-        fusion_version=DECLARATION_FUSION_VERSION,
-        inspection_capture_count=current.inspection_capture_count,
-        source_capture_count=len(source_pairs),
-        source_capture_ids=current.source_capture_ids,
-        source_ocr_run_ids=current.source_ocr_run_ids,
-        skipped_sources=current.skipped_sources,
-        observation_count=0,
-    )
+    run_kwargs = {
+        "inspection_id": inspection.id,
+        "actor_user_id": officer.id,
+        "extractor_version": DECLARATION_EXTRACTOR_VERSION,
+        "fusion_version": DECLARATION_FUSION_VERSION,
+        "inspection_capture_count": current.inspection_capture_count,
+        "source_capture_count": len(source_pairs),
+        "source_capture_ids": current.source_capture_ids,
+        "source_ocr_run_ids": current.source_ocr_run_ids,
+        "skipped_sources": current.skipped_sources,
+        "observation_count": 0,
+    }
+    if client_run_id is not None:
+        run_kwargs["id"] = client_run_id
+
+    run = DeclarationExtractionRun(**run_kwargs)
     db.add(run)
-    db.flush()
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if client_run_id is not None:
+            existing = db.get(DeclarationExtractionRun, client_run_id)
+            if existing is not None:
+                if _matches_extraction_replay(
+                    existing,
+                    inspection_id=inspection.id,
+                    actor_user_id=officer.id,
+                ):
+                    return _result_for_run(db, existing)
+                _raise_client_extraction_id_conflict()
+        raise
 
     persisted_observations: list[DeclarationObservation] = []
     fusion_inputs: list[FusionObservation] = []
@@ -228,6 +288,26 @@ def extract_inspection_declarations(
 
     db.commit()
     db.refresh(run)
+    return _result_for_run(db, run)
+
+
+@router.get(
+    "/runs/{run_id}",
+    response_model=DeclarationExtractionResultRead,
+)
+def get_declaration_extraction_run(
+    inspection_id: str,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, user)
+    run = db.get(DeclarationExtractionRun, run_id)
+    if run is None or run.inspection_id != inspection.id:
+        raise not_found(
+            "declaration_extraction_not_found",
+            "Declaration extraction not found for this inspection.",
+        )
     return _result_for_run(db, run)
 
 

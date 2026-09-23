@@ -1,5 +1,6 @@
 from hashlib import sha256
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image, ImageDraw
 from sqlalchemy import select
@@ -127,10 +128,11 @@ def install_fake_engine(client, engine=None):
     return fake
 
 
-def run_ocr(client, inspection_id, capture_id, headers):
+def run_ocr(client, inspection_id, capture_id, headers, *, run_id=None):
     return client.post(
         f"/api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/run",
         headers=headers,
+        json={"id": run_id} if run_id is not None else None,
     )
 
 
@@ -426,6 +428,95 @@ def test_ocr_engine_failure_is_explicit_and_does_not_create_run(
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "ocr_inference_failed"
     assert db_session.scalar(select(OcrRun)) is None
+
+
+def test_ocr_client_run_id_replay_is_exactly_once(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        blank_package_bytes(),
+    )
+    process_capture(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+    )
+    install_fake_engine(client)
+
+    run_id = str(uuid4())
+    first = run_ocr(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        run_id=run_id,
+    )
+    replay = run_ocr(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        run_id=run_id,
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert first.json()["run"]["id"] == run_id
+    assert replay.json() == first.json()
+    assert len(list(db_session.scalars(select(OcrRun)).all())) == 1
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type
+                == AuditEventType.CAPTURE_OCR_COMPLETED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+
+    exact = client.get(
+        (
+            f"/api/v1/inspections/{inspection['id']}/captures/"
+            f"{capture['id']}/ocr/runs/{run_id}"
+        ),
+        headers=headers,
+    )
+    assert exact.status_code == 200
+    assert exact.json()["run"]["id"] == run_id
+
+    other_capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        blank_package_bytes(),
+    )
+    process_capture(
+        client,
+        inspection["id"],
+        other_capture["id"],
+        headers,
+    )
+    conflict = run_ocr(
+        client,
+        inspection["id"],
+        other_capture["id"],
+        headers,
+        run_id=run_id,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "client_resource_id_conflict"
 
 
 def test_supervisor_can_read_latest_ocr_but_cannot_run_it(

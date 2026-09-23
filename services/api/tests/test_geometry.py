@@ -1,5 +1,6 @@
 from hashlib import sha256
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image, ImageDraw
 from sqlalchemy import select
@@ -79,13 +80,28 @@ def preprocess(client, inspection_id, capture_id, headers):
     return response.json()
 
 
-def analyze(client, inspection_id, capture_id, headers):
+def analyze(
+    client,
+    inspection_id,
+    capture_id,
+    headers,
+    *,
+    geometry_assessment_id=None,
+    corrected_derivative_id=None,
+):
+    payload = None
+    if geometry_assessment_id is not None or corrected_derivative_id is not None:
+        payload = {
+            "geometry_assessment_id": geometry_assessment_id,
+            "corrected_derivative_id": corrected_derivative_id,
+        }
     return client.post(
         (
             f"/api/v1/inspections/{inspection_id}/captures/"
             f"{capture_id}/geometry/analyze"
         ),
         headers=headers,
+        json=payload,
     )
 
 
@@ -280,6 +296,135 @@ def test_geometry_rejects_tampered_source_derivative(
         == "capture_derivative_integrity_mismatch"
     )
     assert db_session.scalar(select(CaptureGeometryAssessment)) is None
+
+
+def test_geometry_client_ids_replay_corrected_result_exactly_once(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        planar_package_bytes(),
+    )
+    preprocess(client, inspection["id"], capture["id"], headers)
+
+    geometry_id = str(uuid4())
+    corrected_id = str(uuid4())
+    first = analyze(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        geometry_assessment_id=geometry_id,
+        corrected_derivative_id=corrected_id,
+    )
+    replay = analyze(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        geometry_assessment_id=geometry_id,
+        corrected_derivative_id=corrected_id,
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert first.json()["geometry"]["id"] == geometry_id
+    assert first.json()["geometry"]["corrected_derivative_id"] == corrected_id
+    assert first.json()["corrected_derivative"]["id"] == corrected_id
+    assert replay.json() == first.json()
+
+    assert (
+        len(
+            list(
+                db_session.scalars(
+                    select(CaptureGeometryAssessment).where(
+                        CaptureGeometryAssessment.capture_id == capture["id"]
+                    )
+                ).all()
+            )
+        )
+        == 1
+    )
+
+    corrected = db_session.get(CaptureDerivative, corrected_id)
+    assert corrected is not None
+    assert corrected.derivative_type == "perspective_corrected"
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type
+                == AuditEventType.CAPTURE_GEOMETRY_ANALYZED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+    assert events[0].details["geometry_assessment_id"] == geometry_id
+
+    exact = client.get(
+        (
+            f"/api/v1/inspections/{inspection['id']}/captures/"
+            f"{capture['id']}/geometry/runs/{geometry_id}"
+        ),
+        headers=headers,
+    )
+    assert exact.status_code == 200
+    assert exact.json() == first.json()
+
+    other_capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        planar_package_bytes(),
+    )
+    preprocess(client, inspection["id"], other_capture["id"], headers)
+    conflict = analyze(
+        client,
+        inspection["id"],
+        other_capture["id"],
+        headers,
+        geometry_assessment_id=geometry_id,
+        corrected_derivative_id=corrected_id,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "client_resource_id_conflict"
+
+
+def test_geometry_client_identity_pair_is_all_or_nothing(
+    client,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        planar_package_bytes(),
+    )
+    preprocess(client, inspection["id"], capture["id"], headers)
+
+    response = analyze(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        geometry_assessment_id=str(uuid4()),
+        corrected_derivative_id=None,
+    )
+
+    assert response.status_code == 422
 
 
 def test_latest_geometry_returns_most_recent_assessment(
