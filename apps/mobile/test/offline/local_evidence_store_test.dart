@@ -42,8 +42,8 @@ void main() {
     expect(replay.sha256, first.sha256);
     expect(await store.verify(first), isTrue);
 
-    expect(
-      () => store.persistBytes(
+    await expectLater(
+      store.persistBytes(
         inspectionId: "inspection_1",
         evidenceId: "evidence_1",
         bytes: Uint8List.fromList(<int>[9, 9, 9]),
@@ -62,8 +62,8 @@ void main() {
       originalFilename: "detail.png",
     );
 
-    expect(
-      () => store.deleteAfterRemoteConfirmation(
+    await expectLater(
+      store.deleteAfterRemoteConfirmation(
         evidence,
         remoteDurabilityConfirmed: false,
       ),
