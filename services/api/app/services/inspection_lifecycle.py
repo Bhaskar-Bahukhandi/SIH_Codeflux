@@ -16,6 +16,14 @@ def require_draft(inspection: Inspection) -> None:
         )
 
 
+def require_pending_review(inspection: Inspection) -> None:
+    if inspection.status is not InspectionStatus.PENDING_REVIEW:
+        raise conflict(
+            "inspection_not_pending_review",
+            "This action is available only after the inspection is submitted for review.",
+        )
+
+
 def submit_for_review(inspection: Inspection) -> None:
     require_draft(inspection)
     inspection.status = InspectionStatus.PENDING_REVIEW
