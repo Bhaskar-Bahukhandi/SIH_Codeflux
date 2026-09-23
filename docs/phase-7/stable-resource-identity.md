@@ -95,6 +95,8 @@ It must never generate a fresh UUID merely because:
 
 A new UUID represents a new intended resource, not a retry.
 
+Stable identity makes replay safe, but the client still does not assume that a failed transport means the server did nothing. Timeout, transport loss, 5xx responses, interrupted in-flight work and unverifiable success responses are reconciled first. Automatic retry is scheduled only after reconciliation positively establishes that the prior mutation was not applied.
+
 ## What this slice does not solve yet
 
 This contract does not yet make every state-transition endpoint replay-safe.
