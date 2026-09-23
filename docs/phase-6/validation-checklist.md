@@ -7,6 +7,7 @@ Status: implementation complete; execution gate pending
 - [ ] owning Officer can review a result from the latest rule-evaluation run after submission;
 - [ ] draft inspection rejects Officer rule review;
 - [ ] result from an older rule-evaluation run is rejected;
+- [ ] latest rule evaluation is rejected if later capture/OCR evidence makes its source extraction stale;
 - [ ] other Officer cannot review another Officer's inspection;
 - [ ] Supervisor/Admin can read review history but cannot create Officer reviews;
 - [ ] accepted review is append-only and auditable;
@@ -20,6 +21,7 @@ Status: implementation complete; execution gate pending
 - [ ] an accepted review that supersedes recheck_required blocks reopening;
 - [ ] reopened inspection cannot be re-submitted against the unchanged old rule evaluation;
 - [ ] a fresh rule-evaluation run after reopen allows resubmission;
+- [ ] evidence changed after that fresh evaluation blocks resubmission until evaluation is refreshed again;
 - [ ] review/reopen actions emit audit events.
 
 ## Persistence and migration
