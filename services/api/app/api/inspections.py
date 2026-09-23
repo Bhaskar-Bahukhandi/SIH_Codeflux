@@ -19,6 +19,7 @@ from app.services.inspection_lifecycle import (
     submit_for_review,
 )
 from app.services.officer_review_state import (
+    has_rule_evaluation_after,
     latest_officer_reviews_by_result,
     latest_rule_evaluation_run,
 )
@@ -123,6 +124,19 @@ def submit_inspection_for_review(
     officer: User = Depends(require_officer),
 ) -> Inspection:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    if (
+        inspection.reopened_for_recheck_at is not None
+        and not has_rule_evaluation_after(
+            db,
+            inspection_id=inspection.id,
+            after=inspection.reopened_for_recheck_at,
+        )
+    ):
+        raise conflict(
+            "fresh_rule_evaluation_required",
+            "Run a new preliminary rule evaluation after reopening for recheck before submitting again.",
+        )
+
     previous_status = inspection.status.value
     submit_for_review(inspection)
 
