@@ -44,11 +44,6 @@ void main() {
       final root = await Directory.systemTemp.createTemp(
         "codeflux_offline_reconnect_",
       );
-      addTearDown(() async {
-        if (await root.exists()) {
-          await root.delete(recursive: true);
-        }
-      });
 
       final databasePath = p.join(root.path, "offline.sqlite3");
       final evidenceStore = LocalEvidenceStore(
@@ -59,6 +54,17 @@ void main() {
         databasePath,
         factory: databaseFactoryFfi,
       );
+      addTearDown(() async {
+        try {
+          await database.close();
+        } catch (_) {
+          // The scenario intentionally closes/reopens the database.
+        }
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+
       var drafts = LocalDraftRepository(database);
       var queue = SyncQueueRepository(database);
       final operationFactory = SyncOperationFactory();
@@ -123,12 +129,12 @@ void main() {
       );
       drafts = LocalDraftRepository(database);
       queue = SyncQueueRepository(database);
-      addTearDown(database.close);
-
       final reopenedDraft = await drafts.getInspection(inspectionId);
       final reopenedEvidence = await drafts.getEvidence(evidenceId);
       expect(reopenedDraft, isNotNull);
       expect(reopenedEvidence, isNotNull);
+      expect(reopenedDraft!.syncState, SyncState.queued);
+      expect(reopenedEvidence!.syncState, SyncState.queued);
       expect(await evidenceStore.verify(localEvidence), isTrue);
       expect((await queue.listAll()).length, 2);
 
@@ -250,6 +256,12 @@ void main() {
         operations.every((operation) => operation.state == SyncState.synced),
         isTrue,
       );
+      final syncedDraft = await drafts.getInspection(inspectionId);
+      final syncedEvidence = await drafts.getEvidence(evidenceId);
+      expect(syncedDraft!.syncState, SyncState.synced);
+      expect(syncedDraft.remoteId, inspectionId);
+      expect(syncedEvidence!.syncState, SyncState.synced);
+      expect(syncedEvidence.remoteId, evidenceId);
 
       // Synchronization alone never deletes the Officer's local original.
       expect(await evidenceStore.verify(localEvidence), isTrue);
