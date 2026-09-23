@@ -9,7 +9,7 @@ import "package:path/path.dart" as p;
 import "../models/sync_operation.dart";
 import "sync_coordinator.dart";
 
-typedef AccessTokenProvider = Future<String> Function();
+typedef AccessTokenProvider = Future<String?> Function();
 
 class CodefluxApiSyncAdapter
     implements SyncOperationExecutor, SyncOperationReconciler {
@@ -1062,8 +1062,8 @@ class CodefluxApiSyncAdapter
   }
 
   Future<Map<String, String>> _headers({bool json = false}) async {
-    final token = (await accessTokenProvider()).trim();
-    if (token.isEmpty) {
+    final token = (await accessTokenProvider())?.trim();
+    if (token == null || token.isEmpty) {
       throw const SyncRequestFailure(
         statusCode: 401,
         apiCode: "local_auth_token_missing",
