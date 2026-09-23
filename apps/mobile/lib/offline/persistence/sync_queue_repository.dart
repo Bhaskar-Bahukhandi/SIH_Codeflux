@@ -150,6 +150,49 @@ class SyncQueueRepository {
     return rows.map(_fromRow).toList(growable: false);
   }
 
+  Future<List<SyncOperation>> listForInspection(
+    String inspectionId,
+  ) async {
+    final rows = await offlineDatabase.database.query(
+      "sync_operations",
+      where: "inspection_id = ?",
+      whereArgs: <Object?>[inspectionId],
+      orderBy: "created_at ASC, id ASC",
+    );
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
+  Future<SyncOperation?> singleResourceOperation({
+    required String inspectionId,
+    required SyncOperationType type,
+    required String resourceId,
+  }) async {
+    final rows = await offlineDatabase.database.query(
+      "sync_operations",
+      where:
+          "inspection_id = ? AND operation_type = ? AND resource_id = ?",
+      whereArgs: <Object?>[
+        inspectionId,
+        type.dbValue,
+        resourceId,
+      ],
+      orderBy: "created_at ASC, id ASC",
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    if (rows.length != 1) {
+      throw StateError(
+        "Expected exactly one queued " +
+            type.dbValue +
+            " operation for resource " +
+            resourceId +
+            ".",
+      );
+    }
+    return _fromRow(rows.single);
+  }
+
   Future<SyncOperation?> claimNextReady(DateTime now) {
     final timestamp = now.toUtc();
     return offlineDatabase.database.transaction((txn) async {
