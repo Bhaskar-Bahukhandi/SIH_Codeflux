@@ -164,7 +164,7 @@ The camera/UI integration, authentication/token persistence, finalization/report
 
 The committed reconnect scenario is a deterministic sync-mechanics test using mock HTTP server state. It verifies dependency ordering, database restart persistence, response-loss reconciliation, exactly-once mutation counts in the simulated remote state, and local-evidence retention. It must not be described as real backend or field validation.
 
-Execution status remains pending: the repository Actions jobs currently terminate before runner steps are allocated, and the ChatGPT container used for this pass could not resolve GitHub for a local checkout. These limitations are not application-test failures, but they also do not count as passing validation.
+GitHub-hosted runner allocation has been restored. Repository, API, and mobile validation now use real executed workflow steps; remaining failures are treated as actual code/toolchain failures and fixed before merge.
 
 ## Validation gates
 
@@ -255,7 +255,7 @@ The mobile branch now also includes the non-visual application-services layer ne
 - idempotent extraction -> rule evaluation -> submission queue construction;
 - workspace facade exposing inspection list/create/evidence/review/sync operations without exposing SQLite internals to future widgets.
 
-UI, camera/gallery acquisition and platform project scaffolding remain deferred until the Flutter analyzer/test gate can execute.
+The first UI and camera/gallery acquisition slice is implemented. Platform project scaffolding remains gated on successful Flutter analyzer/test execution.
 
 
 ## Officer UI checkpoint
