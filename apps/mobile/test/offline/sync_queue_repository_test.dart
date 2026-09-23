@@ -231,7 +231,7 @@ void main() {
     );
   });
 
-  test("transport failure uses bounded delayed retry", () async {
+  test("transport failure parks until reconciliation", () async {
     final now = DateTime.utc(2026, 9, 23, 13);
     await queue.enqueue(createOperation(now));
     await queue.claimNextReady(now);
@@ -247,20 +247,17 @@ void main() {
 
     final failed = await queue.getById(createOperationId);
     expect(failed!.state, SyncState.retryRequired);
-    expect(
-      failed.nextAttemptAt,
-      now.add(const Duration(seconds: 5)),
-    );
+    expect(failed.nextAttemptAt, isNull);
 
     expect(
-      await queue.claimNextReady(now.add(const Duration(seconds: 4))),
+      await queue.claimNextReady(now.add(const Duration(hours: 1))),
       isNull,
     );
-    final retried = await queue.claimNextReady(
-      now.add(const Duration(seconds: 5)),
+    expect(
+      (await queue.listReconciliationRequired())
+          .map((operation) => operation.id),
+      contains(createOperationId),
     );
-    expect(retried, isNotNull);
-    expect(retried!.attemptCount, 2);
   });
 
   test("interrupted sync is parked until remote outcome is reconciled", () async {
