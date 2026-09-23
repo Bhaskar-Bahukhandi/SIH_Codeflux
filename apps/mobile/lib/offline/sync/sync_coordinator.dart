@@ -120,7 +120,8 @@ class SyncCoordinator {
         timedOut: failure.timedOut,
       );
 
-      if (failure.timedOut && decision.requiresReconciliation) {
+      if (decision.targetState == SyncState.retryRequired &&
+          decision.requiresReconciliation) {
         ReconciliationResult reconciliation;
         try {
           reconciliation = reconciler == null
@@ -129,12 +130,7 @@ class SyncCoordinator {
         } on SyncRequestFailure catch (reconciliationFailure) {
           await queue.markFailure(
             operation.id,
-            decision: const SyncFailureDecision(
-              kind: SyncFailureKind.timeoutOutcomeUnknown,
-              targetState: SyncState.retryRequired,
-              autoRetry: false,
-              requiresReconciliation: true,
-            ),
+            decision: decision,
             retryPolicy: retryPolicy,
             apiCode: reconciliationFailure.apiCode,
             message: reconciliationFailure.message,
@@ -161,8 +157,8 @@ class SyncCoordinator {
         if (reconciliation.status == ReconciliationStatus.notApplied) {
           await queue.markFailure(
             operation.id,
-            decision: const SyncFailureDecision(
-              kind: SyncFailureKind.timeoutOutcomeUnknown,
+            decision: SyncFailureDecision(
+              kind: decision.kind,
               targetState: SyncState.retryRequired,
               autoRetry: true,
               requiresReconciliation: false,
