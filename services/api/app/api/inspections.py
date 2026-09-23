@@ -4,13 +4,25 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
 from app.db import get_db
+from app.errors import conflict
 from app.models.audit import AuditEventType
 from app.models.inspection import Inspection
+from app.models.officer_review import OfficerReviewDecision
 from app.models.user import User, UserRole
 from app.schemas.inspection import InspectionCreate, InspectionRead, InspectionUpdate
 from app.services.audit import record_inspection_event
 from app.services.inspection_access import get_visible_inspection_or_raise
-from app.services.inspection_lifecycle import require_draft, submit_for_review
+from app.services.inspection_lifecycle import (
+    reopen_for_recheck,
+    require_draft,
+    require_pending_review,
+    submit_for_review,
+)
+from app.services.officer_review_state import (
+    has_current_rule_evaluation_after,
+    latest_officer_reviews_by_result,
+    latest_rule_evaluation_run,
+)
 
 router = APIRouter(prefix="/inspections", tags=["inspections"])
 
@@ -112,6 +124,19 @@ def submit_inspection_for_review(
     officer: User = Depends(require_officer),
 ) -> Inspection:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    if (
+        inspection.reopened_for_recheck_at is not None
+        and not has_current_rule_evaluation_after(
+            db,
+            inspection_id=inspection.id,
+            after=inspection.reopened_for_recheck_at,
+        )
+    ):
+        raise conflict(
+            "fresh_rule_evaluation_required",
+            "Run a new preliminary rule evaluation after reopening for recheck before submitting again.",
+        )
+
     previous_status = inspection.status.value
     submit_for_review(inspection)
 
@@ -123,6 +148,62 @@ def submit_inspection_for_review(
         details={
             "from_status": previous_status,
             "to_status": inspection.status.value,
+        },
+    )
+
+    db.commit()
+    db.refresh(inspection)
+    return inspection
+
+
+@router.post("/{inspection_id}/reopen-for-recheck", response_model=InspectionRead)
+def reopen_inspection_for_recheck(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    officer: User = Depends(require_officer),
+) -> Inspection:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    require_pending_review(inspection)
+
+    latest_run = latest_rule_evaluation_run(
+        db,
+        inspection_id=inspection.id,
+    )
+    if latest_run is None:
+        raise conflict(
+            "rule_evaluation_required",
+            "A preliminary rule evaluation is required before reopening for recheck.",
+        )
+
+    latest_reviews = latest_officer_reviews_by_result(
+        db,
+        inspection_id=inspection.id,
+        rule_evaluation_run_id=latest_run.id,
+    )
+    recheck_reviews = [
+        review
+        for review in latest_reviews.values()
+        if review.decision is OfficerReviewDecision.RECHECK_REQUIRED
+    ]
+    if not recheck_reviews:
+        raise conflict(
+            "recheck_review_required",
+            "Record a latest Officer review with recheck_required before reopening the inspection.",
+        )
+
+    previous_status = inspection.status.value
+    reopen_for_recheck(inspection)
+
+    record_inspection_event(
+        db,
+        inspection_id=inspection.id,
+        actor_user_id=officer.id,
+        event_type=AuditEventType.INSPECTION_REOPENED_FOR_RECHECK,
+        details={
+            "from_status": previous_status,
+            "to_status": inspection.status.value,
+            "rule_evaluation_run_id": latest_run.id,
+            "trigger_review_ids": sorted(review.id for review in recheck_reviews),
         },
     )
 

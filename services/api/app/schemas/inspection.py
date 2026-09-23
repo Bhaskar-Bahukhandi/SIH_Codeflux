@@ -56,6 +56,7 @@ class InspectionRead(BaseModel):
     officer_id: str | None
     status: InspectionStatus
     submitted_at: datetime | None
+    reopened_for_recheck_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

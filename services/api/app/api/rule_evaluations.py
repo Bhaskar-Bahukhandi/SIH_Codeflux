@@ -16,7 +16,7 @@ from app.schemas.rule_evaluation import (
     RuleEvaluationResponse,
 )
 from app.services.audit import record_inspection_event
-from app.services.declaration_sources import collect_current_ocr_sources
+from app.services.declaration_sources import declaration_extraction_is_current
 from app.services.inspection_access import get_visible_inspection_or_raise
 from app.services.inspection_lifecycle import require_draft
 from app.services.rule_engine import evaluate_rules
@@ -50,17 +50,10 @@ def _assert_extraction_is_current(
     inspection_id: str,
     extraction_run: DeclarationExtractionRun,
 ) -> None:
-    current = collect_current_ocr_sources(
+    if not declaration_extraction_is_current(
         db,
         inspection_id=inspection_id,
-    )
-
-    if (
-        extraction_run.inspection_capture_count
-        != current.inspection_capture_count
-        or extraction_run.source_capture_ids != current.source_capture_ids
-        or extraction_run.source_ocr_run_ids != current.source_ocr_run_ids
-        or extraction_run.skipped_sources != current.skipped_sources
+        extraction_run=extraction_run,
     ):
         raise conflict(
             "current_declaration_extraction_required",

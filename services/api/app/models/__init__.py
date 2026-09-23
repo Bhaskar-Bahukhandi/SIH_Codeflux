@@ -11,6 +11,7 @@ from app.models.declaration import (
 from app.models.geometry import CaptureGeometryAssessment, GeometryStatus
 from app.models.inspection import Inspection, InspectionStatus
 from app.models.ocr import OcrBlock, OcrRun
+from app.models.officer_review import OfficerReviewDecision, OfficerRuleReview
 from app.models.quality import (
     CaptureDerivative,
     CaptureQualityAssessment,
@@ -43,6 +44,8 @@ __all__ = [
     "InspectionStatus",
     "OcrBlock",
     "OcrRun",
+    "OfficerReviewDecision",
+    "OfficerRuleReview",
     "RuleEvaluationResult",
     "RuleEvaluationRun",
     "RuleEvaluationStatus",
