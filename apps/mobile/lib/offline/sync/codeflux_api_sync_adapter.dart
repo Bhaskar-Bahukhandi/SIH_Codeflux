@@ -34,6 +34,8 @@ class CodefluxApiSyncAdapter
         _executeUploadCapture(operation),
       SyncOperationType.processCapture =>
         _executeProcessCapture(operation),
+      SyncOperationType.analyzeGeometry =>
+        _executeGeometry(operation),
       SyncOperationType.runOcr =>
         _executeOcr(operation),
       SyncOperationType.extractDeclarations =>
@@ -59,6 +61,8 @@ class CodefluxApiSyncAdapter
         _reconcileCapture(operation),
       SyncOperationType.processCapture =>
         _reconcileProcessCapture(operation),
+      SyncOperationType.analyzeGeometry =>
+        _reconcileGeometry(operation),
       SyncOperationType.runOcr =>
         _reconcileOcr(operation),
       SyncOperationType.extractDeclarations =>
@@ -273,6 +277,58 @@ class CodefluxApiSyncAdapter
     }
 
     return SyncExecutionSuccess(remoteResourceId: qualityId);
+  }
+
+  Future<SyncExecutionSuccess> _executeGeometry(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final captureId = _requiredString(payload, "capture_id");
+    final geometryId = _requiredString(
+      payload,
+      "geometry_assessment_id",
+    );
+    final correctedCandidateId = _requiredString(
+      payload,
+      "corrected_derivative_id",
+    );
+    if (geometryId != operation.resourceId) {
+      throw StateError(
+        "Geometry assessment ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/captures/" +
+            Uri.encodeComponent(captureId) +
+            "/geometry/analyze",
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{
+        "geometry_assessment_id": geometryId,
+        "corrected_derivative_id": correctedCandidateId,
+      });
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "geometry analysis",
+    );
+    _verifyGeometryResponse(
+      decoded,
+      captureId: captureId,
+      geometryId: geometryId,
+      correctedCandidateId: correctedCandidateId,
+      uncertainOnMalformed: true,
+    );
+
+    return SyncExecutionSuccess(remoteResourceId: geometryId);
   }
 
   Future<SyncExecutionSuccess> _executeOcr(
@@ -619,6 +675,49 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(remoteResourceId: qualityId);
   }
 
+  Future<ReconciliationResult> _reconcileGeometry(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final captureId = _requiredString(payload, "capture_id");
+    final geometryId = _requiredString(
+      payload,
+      "geometry_assessment_id",
+    );
+    final correctedCandidateId = _requiredString(
+      payload,
+      "corrected_derivative_id",
+    );
+
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/captures/" +
+          Uri.encodeComponent(captureId) +
+          "/geometry/runs/" +
+          Uri.encodeComponent(geometryId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "geometry analysis",
+    );
+    final matches = _verifyGeometryResponse(
+      decoded,
+      captureId: captureId,
+      geometryId: geometryId,
+      correctedCandidateId: correctedCandidateId,
+      uncertainOnMalformed: false,
+    );
+    return matches
+        ? ReconciliationResult.applied(remoteResourceId: geometryId)
+        : const ReconciliationResult.unresolved();
+  }
+
   Future<ReconciliationResult> _reconcileOcr(
     SyncOperation operation,
   ) async {
@@ -865,6 +964,56 @@ class CodefluxApiSyncAdapter
               response.statusCode.toString() +
               ".",
     );
+  }
+
+  bool _verifyGeometryResponse(
+    Map<String, dynamic> response, {
+    required String captureId,
+    required String geometryId,
+    required String correctedCandidateId,
+    required bool uncertainOnMalformed,
+  }) {
+    final geometryValue = response["geometry"];
+    if (geometryValue is! Map) {
+      if (uncertainOnMalformed) {
+        throw const SyncRequestFailure(
+          apiCode: "response_unverifiable",
+          message: "Server geometry success response has no geometry object.",
+          outcomeUnknown: true,
+        );
+      }
+      throw const SyncRequestFailure(
+        statusCode: 502,
+        apiCode: "invalid_reconciliation_response",
+        message: "Geometry reconciliation response has no geometry object.",
+      );
+    }
+    final geometry = <String, dynamic>{
+      for (final entry in geometryValue.entries)
+        entry.key.toString(): entry.value,
+    };
+
+    if (geometry["id"]?.toString() != geometryId ||
+        geometry["capture_id"]?.toString() != captureId) {
+      return false;
+    }
+
+    final correctedId = geometry["corrected_derivative_id"]?.toString();
+    final correctedValue = response["corrected_derivative"];
+
+    if (correctedId == null) {
+      return correctedValue == null;
+    }
+    if (correctedId != correctedCandidateId || correctedValue is! Map) {
+      return false;
+    }
+
+    final corrected = <String, dynamic>{
+      for (final entry in correctedValue.entries)
+        entry.key.toString(): entry.value,
+    };
+    return corrected["id"]?.toString() == correctedCandidateId &&
+        corrected["capture_id"]?.toString() == captureId;
   }
 
   Map<String, Object?> _requiredPayloadMap(
