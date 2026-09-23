@@ -55,7 +55,7 @@ jobs:
 
       - name: Test create inspection UI
         run: >
-          timeout --signal=TERM 2m flutter test
+          timeout --signal=TERM 1m flutter test
           test/ui/officer_field_flow_test.dart
           --plain-name "Officer creates an inspection and opens its detail screen"
           --reporter expanded
