@@ -41,6 +41,7 @@ void main() {
     queue = SyncQueueRepository(offlineDatabase);
     await drafts.createInspection(
       id: inspectionId,
+      officerUserId: "officer-1",
       productName: "Offline Test Product",
       now: DateTime.utc(2026, 9, 23, 10),
     );
