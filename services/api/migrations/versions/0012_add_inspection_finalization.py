@@ -34,6 +34,10 @@ def upgrade() -> None:
         sa.Column("report_sha256", sa.String(length=64), nullable=False),
         sa.Column("report_size_bytes", sa.Integer(), nullable=False),
         sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "report_size_bytes > 0",
+            name="ck_inspection_finalizations_report_size_positive",
+        ),
         sa.ForeignKeyConstraint(
             ["finalized_by_user_id"],
             ["users.id"],
