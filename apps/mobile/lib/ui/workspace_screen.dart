@@ -1,3 +1,5 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 
 import "../app/officer_workspace_service.dart";
@@ -139,20 +141,24 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       ),
     );
 
+    final productName = productController.text;
+    final productIdentifier = identifierController.text;
+    productController.dispose();
+    identifierController.dispose();
+
     if (submitted != true || !mounted) {
-      productController.dispose();
-      identifierController.dispose();
       return;
     }
 
     try {
       final created = await widget.workspace.createInspection(
-        productName: productController.text,
-        productIdentifier: identifierController.text,
+        productName: productName,
+        productIdentifier: productIdentifier,
       );
       await _reload();
       if (!mounted) return;
-      await Navigator.of(context).push(
+
+      final route = Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => InspectionScreen(
             inspectionId: created.inspection.id,
@@ -161,16 +167,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
         ),
       );
-      await _reload();
+      unawaited(
+        route.then((_) async {
+          if (mounted) {
+            await _reload();
+          }
+        }),
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Could not create inspection: $error")),
         );
       }
-    } finally {
-      productController.dispose();
-      identifierController.dispose();
     }
   }
 
