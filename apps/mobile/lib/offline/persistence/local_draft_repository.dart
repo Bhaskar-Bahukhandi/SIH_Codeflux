@@ -9,10 +9,20 @@ class LocalDraftRepository {
 
   Future<LocalInspectionDraft> createInspection({
     required String id,
+    required String officerUserId,
     required String productName,
     String? productIdentifier,
     DateTime? now,
   }) async {
+    final normalizedOfficerId = officerUserId.trim();
+    if (normalizedOfficerId.isEmpty) {
+      throw ArgumentError.value(
+        officerUserId,
+        "officerUserId",
+        "Must not be blank.",
+      );
+    }
+
     final normalizedName = productName.trim();
     if (normalizedName.isEmpty) {
       throw ArgumentError.value(productName, "productName", "Must not be blank.");
@@ -24,7 +34,8 @@ class LocalDraftRepository {
             : normalizedIdentifier;
     final existing = await getInspection(id);
     if (existing != null) {
-      if (existing.productName == normalizedName &&
+      if (existing.officerUserId == normalizedOfficerId &&
+          existing.productName == normalizedName &&
           existing.productIdentifier == finalIdentifier) {
         return existing;
       }
@@ -40,6 +51,7 @@ class LocalDraftRepository {
         "id": id,
         "product_name": normalizedName,
         "product_identifier": finalIdentifier,
+        "officer_user_id": normalizedOfficerId,
         "sync_state": SyncState.localOnly.dbValue,
         "created_at": timestamp.toIso8601String(),
         "updated_at": timestamp.toIso8601String(),
@@ -183,6 +195,7 @@ class LocalDraftRepository {
       id: row["id"]! as String,
       productName: row["product_name"]! as String,
       productIdentifier: row["product_identifier"] as String?,
+      officerUserId: row["officer_user_id"] as String?,
       syncState: SyncState.fromDb(row["sync_state"]! as String),
       remoteId: row["remote_id"] as String?,
       lastErrorKind: row["last_error_kind"] as String?,
