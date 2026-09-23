@@ -137,12 +137,16 @@ void main() {
       );
       expect(request.headers["authorization"], "Bearer token");
 
-      expect(request, isA<http.MultipartRequest>());
-      final multipart = request as http.MultipartRequest;
-      expect(multipart.fields["capture_id"], captureId);
-      expect(multipart.fields["view_type"], "front");
-      expect(multipart.files.single.filename, "front.jpg");
-      await bodyStream.toBytes();
+      expect(
+        request.headers["content-type"],
+        startsWith("multipart/form-data;"),
+      );
+      final encodedBody = latin1.decode(await bodyStream.toBytes());
+      expect(encodedBody, contains('name="capture_id"'));
+      expect(encodedBody, contains(captureId));
+      expect(encodedBody, contains('name="view_type"'));
+      expect(encodedBody, contains("front"));
+      expect(encodedBody, contains('filename="front.jpg"'));
 
       return http.StreamedResponse(
         Stream<List<int>>.value(
