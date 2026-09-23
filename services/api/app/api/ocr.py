@@ -4,15 +4,16 @@ from hashlib import sha256
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
 from app.db import get_db
-from app.errors import not_found, service_unavailable
+from app.errors import conflict, not_found, service_unavailable
 from app.models.audit import AuditEventType
 from app.models.ocr import OcrBlock, OcrRun
 from app.models.user import User
-from app.schemas.ocr import OcrResultRead
+from app.schemas.ocr import OcrResultRead, OcrRunRequest
 from app.services.audit import record_inspection_event
 from app.services.capture_access import get_capture_or_raise
 from app.services.inspection_access import get_visible_inspection_or_raise
@@ -73,22 +74,54 @@ def _result_for_run(db: Session, run: OcrRun) -> dict:
     return {"run": run, "blocks": blocks}
 
 
+def _matches_run_replay(
+    run: OcrRun,
+    *,
+    capture_id: str,
+) -> bool:
+    return run.capture_id == capture_id
+
+
+def _raise_client_run_id_conflict() -> None:
+    raise conflict(
+        "client_resource_id_conflict",
+        "The supplied client OCR run ID is already associated with a different capture.",
+    )
+
+
 @router.post("/run", response_model=OcrResultRead)
 def run_ocr(
     inspection_id: str,
     capture_id: str,
+    payload: OcrRunRequest | None = None,
     db: Session = Depends(get_db),
     officer: User = Depends(require_officer),
     storage: LocalMediaStorage = Depends(get_media_storage),
     engine: OcrEngine = Depends(get_ocr_engine),
 ) -> dict:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
-    require_draft(inspection)
     capture = get_capture_or_raise(
         db,
         inspection_id=inspection.id,
         capture_id=capture_id,
     )
+
+    client_run_id = (
+        str(payload.id)
+        if payload is not None and payload.id is not None
+        else None
+    )
+    if client_run_id is not None:
+        existing = db.get(OcrRun, client_run_id)
+        if existing is not None:
+            if _matches_run_replay(
+                existing,
+                capture_id=capture.id,
+            ):
+                return _result_for_run(db, existing)
+            _raise_client_run_id_conflict()
+
+    require_draft(inspection)
 
     source = select_ocr_source_derivative(
         db,
@@ -113,19 +146,37 @@ def run_ocr(
             "OCR could not process this capture.",
         )
 
-    run = OcrRun(
-        capture_id=capture.id,
-        source_derivative_id=source.id,
-        source_sha256=source.sha256,
-        engine_name=engine.name,
-        engine_version=engine.version,
-        model_version=engine.model_version,
-        language=engine.language,
-        parameters=engine.parameters,
-        block_count=len(detections),
-    )
+    run_kwargs = {
+        "capture_id": capture.id,
+        "source_derivative_id": source.id,
+        "source_sha256": source.sha256,
+        "engine_name": engine.name,
+        "engine_version": engine.version,
+        "model_version": engine.model_version,
+        "language": engine.language,
+        "parameters": engine.parameters,
+        "block_count": len(detections),
+    }
+    if client_run_id is not None:
+        run_kwargs["id"] = client_run_id
+
+    run = OcrRun(**run_kwargs)
     db.add(run)
-    db.flush()
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if client_run_id is not None:
+            existing = db.get(OcrRun, client_run_id)
+            if existing is not None:
+                if _matches_run_replay(
+                    existing,
+                    capture_id=capture.id,
+                ):
+                    return _result_for_run(db, existing)
+                _raise_client_run_id_conflict()
+        raise
 
     for index, detection in enumerate(detections):
         db.add(
@@ -157,6 +208,31 @@ def run_ocr(
 
     db.commit()
     db.refresh(run)
+    return _result_for_run(db, run)
+
+
+@router.get("/runs/{run_id}", response_model=OcrResultRead)
+def get_ocr_run(
+    inspection_id: str,
+    capture_id: str,
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, user)
+    capture = get_capture_or_raise(
+        db,
+        inspection_id=inspection.id,
+        capture_id=capture_id,
+    )
+
+    run = db.get(OcrRun, run_id)
+    if run is None or run.capture_id != capture.id:
+        raise not_found(
+            "capture_ocr_not_found",
+            "OCR result not found for this capture.",
+        )
+
     return _result_for_run(db, run)
 
 
