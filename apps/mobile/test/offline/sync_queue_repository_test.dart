@@ -250,8 +250,8 @@ void main() {
       now: now,
     );
 
-    expect(
-      () => queue.enqueue(changed),
+    await expectLater(
+      queue.enqueue(changed),
       throwsA(isA<StateError>()),
     );
   });
