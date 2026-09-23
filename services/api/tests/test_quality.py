@@ -1,5 +1,6 @@
 from hashlib import sha256
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image, ImageDraw
 from sqlalchemy import select
@@ -63,10 +64,25 @@ def upload_capture(client, inspection_id, headers, data):
     return response.json()
 
 
-def process_capture(client, inspection_id, capture_id, headers):
+def process_capture(
+    client,
+    inspection_id,
+    capture_id,
+    headers,
+    *,
+    derivative_id=None,
+    quality_assessment_id=None,
+):
+    payload = None
+    if derivative_id is not None or quality_assessment_id is not None:
+        payload = {
+            "derivative_id": derivative_id,
+            "quality_assessment_id": quality_assessment_id,
+        }
     return client.post(
         f"/api/v1/inspections/{inspection_id}/captures/{capture_id}/process",
         headers=headers,
+        json=payload,
     )
 
 
@@ -272,6 +288,137 @@ def test_latest_quality_returns_most_recent_assessment(
 
     assert latest.status_code == 200
     assert latest.json()["id"] == second.json()["quality"]["id"]
+
+
+def test_processing_client_ids_replay_composite_result_exactly_once(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        sharp_pattern_bytes(),
+    )
+
+    derivative_id = str(uuid4())
+    quality_id = str(uuid4())
+    first = process_capture(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        derivative_id=derivative_id,
+        quality_assessment_id=quality_id,
+    )
+    replay = process_capture(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        derivative_id=derivative_id,
+        quality_assessment_id=quality_id,
+    )
+
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    assert first.json()["derivative"]["id"] == derivative_id
+    assert first.json()["quality"]["id"] == quality_id
+    assert replay.json() == first.json()
+    assert (
+        len(
+            list(
+                db_session.scalars(
+                    select(CaptureDerivative).where(
+                        CaptureDerivative.capture_id == capture["id"]
+                    )
+                ).all()
+            )
+        )
+        == 1
+    )
+    assert (
+        len(
+            list(
+                db_session.scalars(
+                    select(CaptureQualityAssessment).where(
+                        CaptureQualityAssessment.capture_id == capture["id"]
+                    )
+                ).all()
+            )
+        )
+        == 1
+    )
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type == AuditEventType.CAPTURE_PROCESSED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+    assert events[0].details["quality_assessment_id"] == quality_id
+
+    exact = client.get(
+        (
+            f"/api/v1/inspections/{inspection['id']}/captures/"
+            f"{capture['id']}/process-runs/{quality_id}"
+        ),
+        headers=headers,
+    )
+    assert exact.status_code == 200
+    assert exact.json() == first.json()
+
+    other_capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        sharp_pattern_bytes(),
+    )
+    conflict = process_capture(
+        client,
+        inspection["id"],
+        other_capture["id"],
+        headers,
+        derivative_id=derivative_id,
+        quality_assessment_id=quality_id,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "client_resource_id_conflict"
+
+
+def test_processing_client_identity_pair_is_all_or_nothing(
+    client,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    capture = upload_capture(
+        client,
+        inspection["id"],
+        headers,
+        sharp_pattern_bytes(),
+    )
+
+    response = process_capture(
+        client,
+        inspection["id"],
+        capture["id"],
+        headers,
+        derivative_id=str(uuid4()),
+        quality_assessment_id=None,
+    )
+
+    assert response.status_code == 422
 
 
 def test_supervisor_can_read_quality_but_cannot_process(
