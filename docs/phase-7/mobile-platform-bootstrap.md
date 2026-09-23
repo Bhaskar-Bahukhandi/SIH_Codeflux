@@ -36,4 +36,4 @@ For local Android-emulator development, use the actual reachable development API
 
 ## Current limitation
 
-This repository session cannot execute Flutter locally, and GitHub Actions is still failing before runner-step allocation under Issue #38. Therefore the generated native platform projects should not be committed from this branch until the bootstrap script can run and the analyzer/tests genuinely execute.
+GitHub Actions can now execute hosted Flutter jobs. Generated native platform projects should still be committed only after the bootstrap script runs successfully and both `flutter analyze` and `flutter test` pass.
