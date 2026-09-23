@@ -1,8 +1,24 @@
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.quality import CaptureQualityStatus
+
+
+class CaptureProcessingRequest(BaseModel):
+    derivative_id: UUID | None = None
+    quality_assessment_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_stable_identity_pair(self) -> "CaptureProcessingRequest":
+        has_derivative = self.derivative_id is not None
+        has_quality = self.quality_assessment_id is not None
+        if has_derivative != has_quality:
+            raise ValueError(
+                "derivative_id and quality_assessment_id must be supplied together."
+            )
+        return self
 
 
 class CaptureDerivativeRead(BaseModel):
