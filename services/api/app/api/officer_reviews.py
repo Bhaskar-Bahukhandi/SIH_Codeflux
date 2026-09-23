@@ -59,7 +59,7 @@ def _matches_review_replay(
         review.inspection_id == inspection_id
         and review.officer_user_id == officer_id
         and review.rule_evaluation_result_id == result_id
-        and review.decision is decision
+        and review.decision == decision
         and review.corrected_value == corrected_value
         and review.note == note
     )
