@@ -278,6 +278,50 @@ void main() {
     expect((await queue.getById(operationId))!.state, SyncState.synced);
   });
 
+  test("authentication expiry blocks until credentials are resolved", () async {
+    final now = DateTime.utc(2026, 9, 23, 20, 50);
+    await enqueueOperation(now);
+    final coordinator = SyncCoordinator(
+      queue: queue,
+      executor: FakeExecutor(
+        (_) async => throw const SyncRequestFailure(
+          statusCode: 401,
+          apiCode: "invalid_or_expired_token",
+          message: "Authentication expired.",
+        ),
+      ),
+    );
+
+    final result = await coordinator.runNext(now: now);
+
+    expect(result.status, SyncCycleStatus.blocked);
+    final stored = await queue.getById(operationId);
+    expect(stored!.state, SyncState.blocked);
+    expect(stored.nextAttemptAt, isNull);
+  });
+
+  test("stale evidence rejection becomes explicit conflict", () async {
+    final now = DateTime.utc(2026, 9, 23, 20, 55);
+    await enqueueOperation(now);
+    final coordinator = SyncCoordinator(
+      queue: queue,
+      executor: FakeExecutor(
+        (_) async => throw const SyncRequestFailure(
+          statusCode: 409,
+          apiCode: "current_rule_evaluation_required",
+          message: "Evidence is stale.",
+        ),
+      ),
+    );
+
+    final result = await coordinator.runNext(now: now);
+
+    expect(result.status, SyncCycleStatus.conflict);
+    final stored = await queue.getById(operationId);
+    expect(stored!.state, SyncState.conflict);
+    expect(stored.nextAttemptAt, isNull);
+  });
+
   test("semantic validation rejection becomes blocked", () async {
     final now = DateTime.utc(2026, 9, 23, 21);
     await enqueueOperation(now);
