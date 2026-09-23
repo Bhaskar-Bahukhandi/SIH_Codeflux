@@ -224,6 +224,35 @@ void main() {
     expect(stored.nextAttemptAt, isNotNull);
   });
 
+  test("unverifiable success response is reconciled before replay", () async {
+    final now = DateTime.utc(2026, 9, 23, 20, 15);
+    await enqueueOperation(now);
+    final executor = FakeExecutor(
+      (_) async => throw const SyncRequestFailure(
+        apiCode: "response_unverifiable",
+        message: "Success body could not be verified.",
+        outcomeUnknown: true,
+      ),
+    );
+    final reconciler = FakeReconciler(
+      const ReconciliationResult.applied(
+        remoteResourceId: inspectionId,
+      ),
+    );
+    final coordinator = SyncCoordinator(
+      queue: queue,
+      executor: executor,
+      reconciler: reconciler,
+    );
+
+    final result = await coordinator.runNext(now: now);
+
+    expect(result.status, SyncCycleStatus.synced);
+    expect(executor.calls, 1);
+    expect(reconciler.calls, 1);
+    expect((await queue.getById(operationId))!.state, SyncState.synced);
+  });
+
   test("transport failure is reconciled before retry", () async {
     final now = DateTime.utc(2026, 9, 23, 20, 30);
     await enqueueOperation(now);
