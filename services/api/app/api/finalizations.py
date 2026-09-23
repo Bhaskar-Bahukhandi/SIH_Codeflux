@@ -97,7 +97,7 @@ def finalize_inspection_record(
         finalized_at=finalized_at,
     )
     snapshot_digest = snapshot_sha256(snapshot)
-    report_bytes = build_report_pdf(snapshot)
+    report_bytes = build_report_pdf(snapshot, snapshot_sha256=snapshot_digest)
     report_digest = hashlib.sha256(report_bytes).hexdigest()
     storage_key = (
         f"inspections/{inspection.id}/reports/"
@@ -199,6 +199,13 @@ def get_finalized_report(
         raise service_unavailable(
             "finalized_report_unavailable",
             "The finalized report file is temporarily unavailable.",
+        )
+
+    report_bytes = path.read_bytes()
+    if hashlib.sha256(report_bytes).hexdigest() != finalization.report_sha256:
+        raise service_unavailable(
+            "finalized_report_integrity_failed",
+            "The finalized report failed its integrity check.",
         )
 
     return FileResponse(
