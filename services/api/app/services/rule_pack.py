@@ -51,6 +51,8 @@ class RulePackDefinition(BaseModel):
     jurisdiction: str
     authority: str
     verified_on: date
+    reviewed_by: str = Field(min_length=1)
+    review_type: str = Field(min_length=1)
     purpose: str
     supported_scope: RulePackScope
     sources: list[RulePackSource] = Field(min_length=1)
