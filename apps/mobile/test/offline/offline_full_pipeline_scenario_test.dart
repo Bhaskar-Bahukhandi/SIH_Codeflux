@@ -9,6 +9,7 @@ import "package:http/testing.dart";
 import "package:path/path.dart" as p;
 import "package:sqflite_common_ffi/sqflite_ffi.dart";
 
+import "package:codeflux_mobile/offline/models/local_records.dart";
 import "package:codeflux_mobile/offline/models/sync_state.dart";
 import "package:codeflux_mobile/offline/persistence/local_draft_repository.dart";
 import "package:codeflux_mobile/offline/persistence/offline_database.dart";
@@ -77,7 +78,7 @@ void main() {
         now: nextTime(),
       );
 
-      Future<dynamic> registerEvidence({
+      Future<(LocalEvidenceRecord, StoredLocalEvidence)> registerEvidence({
         required String id,
         required String viewType,
         required List<int> bytes,
