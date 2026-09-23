@@ -281,6 +281,200 @@ void main() {
     );
   });
 
+  test("OCR stable run executes and reconciles by exact run ID", () async {
+    const ocrRunId = "41414141-4141-4414-8414-414141414141";
+    var postCount = 0;
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        postCount += 1;
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/ocr/run",
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["id"], ocrRunId);
+      } else {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/ocr/runs/" +
+              ocrRunId,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "run": <String, Object?>{
+            "id": ocrRunId,
+            "capture_id": captureId,
+          },
+          "blocks": <Object?>[],
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-ocr",
+      inspectionId: inspectionId,
+      type: SyncOperationType.runOcr,
+      resourceId: ocrRunId,
+      payload: const <String, Object?>{
+        "id": ocrRunId,
+        "capture_id": captureId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      ocrRunId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+    expect(postCount, 1);
+  });
+
+  test("declaration extraction stable run uses exact reconciliation endpoint", () async {
+    const extractionRunId = "42424242-4242-4424-8424-424242424242";
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/declarations/extract",
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["id"], extractionRunId);
+      } else {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/declarations/runs/" +
+              extractionRunId,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "run": <String, Object?>{
+            "id": extractionRunId,
+            "inspection_id": inspectionId,
+          },
+          "observations": <Object?>[],
+          "summaries": <Object?>[],
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-extraction",
+      inspectionId: inspectionId,
+      type: SyncOperationType.extractDeclarations,
+      resourceId: extractionRunId,
+      payload: const <String, Object?>{"id": extractionRunId},
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      extractionRunId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+  });
+
+  test("rule evaluation stable run verifies and reconciles context", () async {
+    const evaluationRunId = "43434343-4343-4434-8434-434343434343";
+    const context = <String, Object?>{
+      "intended_for_retail_sale": true,
+      "industrial_or_institutional_consumer": false,
+      "package_exceeds_25kg_or_25l": false,
+    };
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/rule-evaluations/evaluate",
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["id"], evaluationRunId);
+        expect(body["context"], context);
+      } else {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/rule-evaluations/runs/" +
+              evaluationRunId,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "run": <String, Object?>{
+            "id": evaluationRunId,
+            "inspection_id": inspectionId,
+            "context_snapshot": context,
+          },
+          "results": <Object?>[],
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-evaluation",
+      inspectionId: inspectionId,
+      type: SyncOperationType.evaluateRules,
+      resourceId: evaluationRunId,
+      payload: const <String, Object?>{
+        "id": evaluationRunId,
+        "context": context,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      evaluationRunId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+  });
+
   test("capture integrity mismatch fails before network request", () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       "codeflux_api_integrity_",
