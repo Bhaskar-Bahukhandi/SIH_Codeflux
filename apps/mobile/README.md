@@ -14,13 +14,13 @@ Implemented on the Phase 7 branch:
 - restart recovery for operations interrupted while syncing;
 - bounded retry/backoff policy;
 - explicit transport, timeout, authentication, authorization, validation, stale-evidence, lifecycle, identity and integrity failure classes;
-- timeout/outcome-unknown protection that requires reconciliation before blind replay;
+- uncertain-outcome protection for timeout, transport loss, 5xx, interrupted process state and unverifiable success responses;
 - checksum-preserving local evidence storage;
 - a deletion gate that requires explicit remote-durability confirmation;
 - headless sync coordinator interfaces for execution and reconciliation;
 - replay-aware HTTP adapter for inspection creation, capture upload and Officer review creation;
 - Bearer-token injection through an external token provider rather than hard-coded credentials;
-- server reconciliation for inspection/capture/review stable IDs after outcome-unknown timeouts;
+- server reconciliation for inspection/capture/review stable IDs before replaying any uncertain remote outcome;
 - local capture checksum/size verification before any upload request;
 - bounded startup queue draining that continues past isolated blocked/conflicted work;
 - a simulated offline -> app restart -> reconnect scenario with a deliberately lost capture response;
@@ -36,7 +36,7 @@ The current slice is infrastructure for the Officer field workflow. It must be v
 ## Offline safety rules
 
 - A queued operation is not equivalent to server success.
-- A timeout is treated as outcome-unknown until reconciled.
+- Timeout, transport loss, 5xx, interrupted in-flight work and unverifiable success responses are treated as outcome-unknown until reconciled.
 - Dependent operations cannot overtake unsynced prerequisites.
 - A blocked or conflicted prerequisite explicitly blocks dependent work.
 - Local original evidence is retained until remote durability is positively confirmed.
