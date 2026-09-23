@@ -97,11 +97,19 @@ A new UUID represents a new intended resource, not a retry.
 
 Stable identity makes replay safe, but the client still does not assume that a failed transport means the server did nothing. Timeout, transport loss, 5xx responses, interrupted in-flight work and unverifiable success responses are reconciled first. Automatic retry is scheduled only after reconciliation positively establishes that the prior mutation was not applied.
 
+## Stable append-only processing run IDs
+
+The same stable-resource rule now applies to append-only OCR, declaration extraction and rule-evaluation runs.
+
+Each operation may carry a client-generated UUID for the top-level run record. Exact replay returns that original run and does not create a second audit event or append-only run. A deliberate new processing run must use a new stable UUID.
+
+Exact run-read endpoints are provided for reconciliation so the client never relies on "latest" when confirming whether a specific uncertain request was applied.
+
 ## What this slice does not solve yet
 
 This contract does not yet make every state-transition endpoint replay-safe.
 
-Submission, recheck reopening, processing/OCR/extraction/evaluation triggers, and finalization/report behavior require their own reconciliation/idempotency rules. Finalization work also remains gated on PR #35.
+Preprocessing/geometry composite records, submission, recheck reopening, and finalization/report behavior still require their own reconciliation/idempotency rules. Finalization work also remains gated on PR #35.
 
 ## Validation evidence required before merge
 
