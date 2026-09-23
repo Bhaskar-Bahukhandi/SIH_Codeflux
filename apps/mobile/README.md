@@ -18,10 +18,18 @@ Implemented on the Phase 7 branch:
 - checksum-preserving local evidence storage;
 - a deletion gate that requires explicit remote-durability confirmation;
 - headless sync coordinator interfaces for execution and reconciliation;
-- Flutter unit tests using SQLite FFI;
+- replay-aware HTTP adapter for inspection creation, capture upload and Officer review creation;
+- Bearer-token injection through an external token provider rather than hard-coded credentials;
+- server reconciliation for inspection/capture/review stable IDs after outcome-unknown timeouts;
+- local capture checksum/size verification before any upload request;
+- bounded startup queue draining that continues past isolated blocked/conflicted work;
+- a simulated offline -> app restart -> reconnect scenario with a deliberately lost capture response;
+- Flutter unit tests using SQLite FFI and HTTP mock transport;
 - a dedicated mobile offline GitHub Actions workflow.
 
-The Flutter UI, camera integration, authentication screens and HTTP API executor are **not** represented as implemented yet.
+The Flutter UI, camera integration, login/token-persistence screens, background scheduling, and sync adapters for preprocessing/OCR/extraction/rule evaluation/submission/recheck/finalization are **not** represented as implemented yet.
+
+The current reconnect scenario uses an in-process mock HTTP server state to validate sync mechanics. It is not a substitute for an executed Flutter-to-FastAPI integration test or field-device validation.
 
 The current slice is infrastructure for the Officer field workflow. It must be validated before UI code is allowed to present any operation as synchronized.
 
