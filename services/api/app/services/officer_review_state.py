@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.declaration import DeclarationExtractionRun
 from app.models.officer_review import OfficerRuleReview
 from app.models.rule_evaluation import RuleEvaluationRun
-from app.services.declaration_sources import collect_current_ocr_sources
+from app.services.declaration_sources import declaration_extraction_is_current
 
 
 def latest_rule_evaluation_run(
@@ -66,16 +66,10 @@ def rule_evaluation_matches_current_evidence(
     if extraction_run is None or extraction_run.inspection_id != inspection_id:
         return False
 
-    current = collect_current_ocr_sources(
+    return declaration_extraction_is_current(
         db,
         inspection_id=inspection_id,
-    )
-    return (
-        extraction_run.inspection_capture_count
-        == current.inspection_capture_count
-        and extraction_run.source_capture_ids == current.source_capture_ids
-        and extraction_run.source_ocr_run_ids == current.source_ocr_run_ids
-        and extraction_run.skipped_sources == current.skipped_sources
+        extraction_run=extraction_run,
     )
 
 
