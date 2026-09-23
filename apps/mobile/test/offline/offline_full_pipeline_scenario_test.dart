@@ -73,6 +73,7 @@ void main() {
 
       final draft = await drafts.createInspection(
         id: inspectionId,
+        officerUserId: "officer-1",
         productName: "Pipeline Product",
         productIdentifier: "PIPE-001",
         now: nextTime(),
