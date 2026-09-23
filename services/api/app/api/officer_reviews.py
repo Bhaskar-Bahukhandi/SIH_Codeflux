@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_officer
 from app.db import get_db
 from app.errors import conflict, not_found
 from app.models.audit import AuditEventType
-from app.models.inspection import InspectionStatus
-from app.models.officer_review import OfficerRuleReview
+from app.models.officer_review import OfficerReviewDecision, OfficerRuleReview
 from app.models.rule_evaluation import RuleEvaluationResult, RuleEvaluationRun
 from app.models.user import User
 from app.schemas.officer_review import (
@@ -19,19 +19,13 @@ from app.schemas.officer_review import (
 )
 from app.services.audit import record_inspection_event
 from app.services.inspection_access import get_visible_inspection_or_raise
+from app.services.inspection_lifecycle import require_pending_review
+from app.services.officer_review_validation import normalize_officer_corrected_value
 
 router = APIRouter(
     prefix="/inspections/{inspection_id}/rule-reviews",
     tags=["officer-rule-reviews"],
 )
-
-
-def _require_pending_review(inspection_status: InspectionStatus) -> None:
-    if inspection_status is not InspectionStatus.PENDING_REVIEW:
-        raise conflict(
-            "inspection_not_pending_review",
-            "Officer rule review is available only after the inspection is submitted for review.",
-        )
 
 
 def _latest_rule_evaluation_run(
@@ -62,7 +56,7 @@ def review_rule_result(
     officer: User = Depends(require_officer),
 ) -> OfficerRuleReview:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
-    _require_pending_review(inspection.status)
+    require_pending_review(inspection)
 
     latest_run = _latest_rule_evaluation_run(
         db,
@@ -74,14 +68,22 @@ def review_rule_result(
             "A preliminary rule evaluation is required before officer review.",
         )
 
-    result = db.get(RuleEvaluationResult, rule_evaluation_result_id)
-    if (
-        result is None
-        or result.evaluation_run_id != latest_run.id
-    ):
+    result = db.scalar(
+        select(RuleEvaluationResult)
+        .where(RuleEvaluationResult.id == rule_evaluation_result_id)
+        .with_for_update()
+    )
+    if result is None or result.evaluation_run_id != latest_run.id:
         raise not_found(
             "rule_evaluation_result_not_found",
             "Rule evaluation result not found in the latest inspection evaluation.",
+        )
+
+    corrected_value = payload.corrected_value
+    if payload.decision is OfficerReviewDecision.CORRECTED:
+        corrected_value = normalize_officer_corrected_value(
+            declaration_type=result.declaration_type,
+            value=payload.corrected_value or {},
         )
 
     latest_revision = db.scalar(
@@ -98,7 +100,7 @@ def review_rule_result(
         rule_evaluation_result_id=result.id,
         revision=revision,
         decision=payload.decision,
-        corrected_value=payload.corrected_value,
+        corrected_value=corrected_value,
         note=payload.note,
     )
     db.add(review)
@@ -119,7 +121,15 @@ def review_rule_result(
         },
     )
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise conflict(
+            "officer_review_revision_conflict",
+            "The review changed concurrently. Reload the review history and retry.",
+        )
+
     db.refresh(review)
     return review
 
