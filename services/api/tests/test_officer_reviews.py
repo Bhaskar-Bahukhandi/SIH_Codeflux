@@ -172,6 +172,37 @@ def test_owner_can_accept_latest_rule_result_after_submission(
     assert events[0].details["decision"] == "accepted"
 
 
+def test_blank_optional_note_is_normalized_to_null(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    response = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {
+            "decision": "accepted",
+            "note": "   ",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["note"] is None
+
+
 def test_corrected_mrp_is_normalized_and_requires_note(
     client,
     db_session,
