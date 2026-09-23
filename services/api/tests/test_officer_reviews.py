@@ -416,3 +416,124 @@ def test_other_officer_cannot_review_and_supervisor_is_read_only(
         {"decision": "accepted"},
     )
     assert rejected.status_code == 403
+
+
+def test_recheck_review_can_reopen_inspection_to_draft(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    review_response = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {
+            "decision": "recheck_required",
+            "note": "The price panel needs a clearer capture.",
+        },
+    )
+    assert review_response.status_code == 200
+
+    reopened = client.post(
+        f"/api/v1/inspections/{inspection['id']}/reopen-for-recheck",
+        headers=headers,
+    )
+
+    assert reopened.status_code == 200
+    assert reopened.json()["status"] == "draft"
+    assert reopened.json()["submitted_at"] is None
+
+    editable = client.patch(
+        f"/api/v1/inspections/{inspection['id']}",
+        headers=headers,
+        json={"product_name": "Recheck Product"},
+    )
+    assert editable.status_code == 200
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type
+                == AuditEventType.INSPECTION_REOPENED_FOR_RECHECK.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+    assert events[0].details["trigger_review_ids"] == [
+        review_response.json()["id"]
+    ]
+
+
+def test_reopen_requires_latest_recheck_review(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    _, result = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=officer.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    accepted = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+    assert accepted.status_code == 200
+
+    rejected = client.post(
+        f"/api/v1/inspections/{inspection['id']}/reopen-for-recheck",
+        headers=headers,
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["error"]["code"] == "recheck_review_required"
+
+    recheck = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {
+            "decision": "recheck_required",
+            "note": "Need a new image.",
+        },
+    )
+    assert recheck.status_code == 200
+
+    resolved = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["revision"] == 3
+
+    still_rejected = client.post(
+        f"/api/v1/inspections/{inspection['id']}/reopen-for-recheck",
+        headers=headers,
+    )
+    assert still_rejected.status_code == 409
+    assert still_rejected.json()["error"]["code"] == "recheck_review_required"
