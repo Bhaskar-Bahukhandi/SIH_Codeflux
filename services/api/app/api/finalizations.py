@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -194,7 +194,7 @@ def get_finalized_report(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     storage: LocalMediaStorage = Depends(get_media_storage),
-) -> FileResponse:
+) -> Response:
     inspection = get_visible_inspection_or_raise(db, inspection_id, user)
     finalization = _get_finalization(db, inspection_id=inspection.id)
     if finalization is None:
@@ -222,8 +222,14 @@ def get_finalized_report(
             "The finalized report failed its integrity check.",
         )
 
-    return FileResponse(
-        path=path,
+    return Response(
+        content=report_bytes,
         media_type="application/pdf",
-        filename=f"CODEFLUX-{finalization.report_id}.pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="CODEFLUX-{finalization.report_id}.pdf"'
+            ),
+            "X-Report-ID": finalization.report_id,
+            "X-Report-SHA256": finalization.report_sha256,
+        },
     )
