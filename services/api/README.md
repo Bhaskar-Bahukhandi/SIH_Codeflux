@@ -2,7 +2,7 @@
 
 Technology: Python + FastAPI.
 
-The API contains the data/access, capture/preprocessing, OCR evidence, declaration-extraction, preliminary rule-evaluation and Officer verification foundations.
+The API contains the data/access, capture/preprocessing, OCR evidence, declaration-extraction, preliminary rule-evaluation, Officer verification and finalization/report foundations.
 
 ## Current capabilities
 
@@ -20,7 +20,7 @@ The API contains the data/access, capture/preprocessing, OCR evidence, declarati
 - persisted rule-pack ID/version/SHA-256 plus a full logical rule-pack snapshot, source extraction run and officer context;
 - explicit pass, manual_verification_required, indeterminate, and not_evaluated behavior for the current pack.
 
-Physical measurement, confirmed-absence findings, officer finding approval/finalization, reports and offline sync are not represented as working yet.
+Physical measurement, penalty/notice workflows and offline sync are not represented as working yet.
 
 ## Local setup
 
@@ -134,3 +134,25 @@ If the latest review state for at least one result is `recheck_required`, the ow
 The inspection returns to `draft` so evidence can be corrected or recaptured.
 
 After reopening, another submission is blocked until a new preliminary rule-evaluation run has been created after the reopen timestamp. This is an evidence-freshness workflow gate, not a legal-compliance decision.
+
+
+## Finalization and evidence-backed report
+
+After all results in the latest current rule-evaluation run have resolvable Officer reviews, the owning Officer may finalize the inspection:
+
+- `POST /api/v1/inspections/{inspection_id}/finalization`
+- `GET /api/v1/inspections/{inspection_id}/finalization`
+- `GET /api/v1/inspections/{inspection_id}/finalization/report`
+
+Current resolution rules are intentionally narrow:
+
+- machine `pass` + Officer `accepted` -> resolvable;
+- machine `pass` + valid Officer `corrected` -> resolvable;
+- machine `manual_verification_required` + valid Officer `corrected` -> resolvable;
+- `recheck_required`, `indeterminate`, `not_evaluated`, `not_applicable`, and unsupported states -> blocked.
+
+Finalization stores an immutable snapshot containing rule-pack provenance, machine results, Officer reviews/corrections, resolved values and evidence capture references.
+
+The generated PDF is deterministic for the same snapshot. The database stores both the canonical snapshot SHA-256 and the PDF-file SHA-256. The PDF prints the snapshot checksum because a file cannot safely embed its own cryptographic file hash without creating a self-referential checksum problem.
+
+The report is an evidence-backed inspection review record. It does not calculate penalties or issue statutory notices.
