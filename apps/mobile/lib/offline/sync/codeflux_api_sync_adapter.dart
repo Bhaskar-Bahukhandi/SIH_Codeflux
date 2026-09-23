@@ -320,13 +320,21 @@ class CodefluxApiSyncAdapter
       response.body,
       resourceLabel: "geometry analysis",
     );
-    _verifyGeometryResponse(
+    final matches = _verifyGeometryResponse(
       decoded,
       captureId: captureId,
       geometryId: geometryId,
       correctedCandidateId: correctedCandidateId,
       uncertainOnMalformed: true,
     );
+    if (!matches) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server geometry response does not match the queued resources.",
+      );
+    }
 
     return SyncExecutionSuccess(remoteResourceId: geometryId);
   }
