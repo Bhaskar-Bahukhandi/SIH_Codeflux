@@ -92,24 +92,25 @@ def review_rule_result(
         note=payload.note,
     )
     db.add(review)
-    db.flush()
-
-    record_inspection_event(
-        db,
-        inspection_id=inspection.id,
-        actor_user_id=officer.id,
-        event_type=AuditEventType.OFFICER_RULE_REVIEW_RECORDED,
-        details={
-            "review_id": review.id,
-            "rule_evaluation_run_id": latest_run.id,
-            "rule_evaluation_result_id": result.id,
-            "rule_id": result.rule_id,
-            "revision": review.revision,
-            "decision": review.decision.value,
-        },
-    )
 
     try:
+        db.flush()
+
+        record_inspection_event(
+            db,
+            inspection_id=inspection.id,
+            actor_user_id=officer.id,
+            event_type=AuditEventType.OFFICER_RULE_REVIEW_RECORDED,
+            details={
+                "review_id": review.id,
+                "rule_evaluation_run_id": latest_run.id,
+                "rule_evaluation_result_id": result.id,
+                "rule_id": result.rule_id,
+                "revision": review.revision,
+                "decision": review.decision.value,
+            },
+        )
+
         db.commit()
     except IntegrityError:
         db.rollback()
