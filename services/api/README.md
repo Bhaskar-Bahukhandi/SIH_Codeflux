@@ -134,3 +134,35 @@ If the latest review state for at least one result is `recheck_required`, the ow
 The inspection returns to `draft` so evidence can be corrected or recaptured.
 
 After reopening, another submission is blocked until a new preliminary rule-evaluation run has been created after the reopen timestamp. This is an evidence-freshness workflow gate, not a legal-compliance decision.
+
+
+## Phase 7 replay-safe synchronization contracts
+
+The Phase 7 branch adds backward-compatible client-generated stable IDs for offline/retry reconciliation.
+
+Supported stable identities:
+
+- inspection creation: optional JSON `id`;
+- capture upload: optional multipart `capture_id`;
+- preprocessing: optional paired `derivative_id` + `quality_assessment_id`;
+- geometry: optional paired `geometry_assessment_id` + candidate `corrected_derivative_id`;
+- OCR: optional JSON `id` for the OCR run;
+- declaration extraction: optional JSON `id` for the extraction run;
+- rule evaluation: optional JSON `id` for the evaluation run;
+- Officer rule review: optional JSON `id`.
+
+Exact reconciliation reads added for append-only/composite processing results:
+
+- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/process-runs/{quality_assessment_id}`;
+- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/geometry/runs/{geometry_assessment_id}`;
+- `GET /api/v1/inspections/{inspection_id}/captures/{capture_id}/ocr/runs/{run_id}`;
+- `GET /api/v1/inspections/{inspection_id}/declarations/runs/{run_id}`;
+- `GET /api/v1/inspections/{inspection_id}/rule-evaluations/runs/{run_id}`.
+
+Stable-ID replay confirms an already-persisted operation. It does not deduplicate intentional reruns by matching input values. A deliberate new run must use a new client UUID or omit the optional ID to retain server-generated-ID behavior.
+
+Composite image-processing retries verify persisted derivative integrity before replay success. Client-facing derivative IDs are decoupled from candidate storage object names where concurrent retry cleanup could otherwise damage a winning evidence file.
+
+Submission and recheck reopening remain lifecycle transitions rather than new server records. The Flutter Phase 7 queue reconciles these transitions from persisted inspection status and recheck timestamps before any uncertain retry.
+
+These additions do not alter Legal Metrology rule semantics or turn processing results into final legal findings.
