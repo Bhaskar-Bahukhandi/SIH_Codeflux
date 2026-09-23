@@ -1,6 +1,6 @@
 # Phase 7 — Offline-first Operation and Synchronization Hardening
 
-Status: planning / interface design in progress
+Status: initial implementation in progress
 
 Issue: #36
 
@@ -120,6 +120,22 @@ After a successful request or reconnect:
 4. mark the operation synced only after confirmation;
 5. unblock dependent operations;
 6. retain explicit conflict/blocked state for mismatches.
+
+## Implemented slice: stable resource replay safety
+
+The first Phase 7 implementation slice is present on this branch:
+
+- client-generated stable UUID for inspection creation;
+- client-generated stable UUID for capture upload;
+- client-generated stable UUID for Officer review creation;
+- exact replay returns the existing resource instead of creating a duplicate;
+- mismatched reuse of the same client resource ID is rejected;
+- capture replay confirms stored evidence integrity before reporting success;
+- focused regression tests are present in `test_sync_idempotency.py`.
+
+No database migration is introduced in this slice, avoiding a revision collision with PR #35.
+
+Execution status remains pending: the repository Actions jobs currently terminate before runner steps are allocated, and the ChatGPT container used for this pass could not resolve GitHub for a local checkout. These limitations are not application-test failures, but they also do not count as passing validation.
 
 ## Validation gates
 
