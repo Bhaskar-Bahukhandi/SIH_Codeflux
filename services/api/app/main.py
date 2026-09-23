@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.api.auth import router as auth_router
 from app.api.captures import router as captures_router
 from app.api.declarations import router as declarations_router
+from app.api.finding_reviews import router as finding_reviews_router
 from app.api.geometry import router as geometry_router
 from app.api.inspections import router as inspections_router
 from app.api.ocr import router as ocr_router
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(ocr_router, prefix=settings.api_prefix)
     app.include_router(declarations_router, prefix=settings.api_prefix)
     app.include_router(rule_evaluations_router, prefix=settings.api_prefix)
+    app.include_router(finding_reviews_router, prefix=settings.api_prefix)
     return app
 
 
