@@ -32,6 +32,8 @@ class CodefluxApiSyncAdapter
         _executeCreateInspection(operation),
       SyncOperationType.uploadCapture =>
         _executeUploadCapture(operation),
+      SyncOperationType.processCapture =>
+        _executeProcessCapture(operation),
       SyncOperationType.runOcr =>
         _executeOcr(operation),
       SyncOperationType.extractDeclarations =>
@@ -55,6 +57,8 @@ class CodefluxApiSyncAdapter
         _reconcileInspection(operation),
       SyncOperationType.uploadCapture =>
         _reconcileCapture(operation),
+      SyncOperationType.processCapture =>
+        _reconcileProcessCapture(operation),
       SyncOperationType.runOcr =>
         _reconcileOcr(operation),
       SyncOperationType.extractDeclarations =>
@@ -207,6 +211,68 @@ class CodefluxApiSyncAdapter
     }
 
     return SyncExecutionSuccess(remoteResourceId: remoteId);
+  }
+
+  Future<SyncExecutionSuccess> _executeProcessCapture(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final captureId = _requiredString(payload, "capture_id");
+    final derivativeId = _requiredString(payload, "derivative_id");
+    final qualityId = _requiredString(payload, "quality_assessment_id");
+    if (qualityId != operation.resourceId) {
+      throw StateError(
+        "Preprocessing quality ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/captures/" +
+            Uri.encodeComponent(captureId) +
+            "/process",
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{
+        "derivative_id": derivativeId,
+        "quality_assessment_id": qualityId,
+      });
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "capture preprocessing",
+    );
+    final derivative = _requiredResponseMap(
+      decoded,
+      "derivative",
+      "capture preprocessing",
+    );
+    final quality = _requiredResponseMap(
+      decoded,
+      "quality",
+      "capture preprocessing",
+    );
+
+    if (derivative["id"]?.toString() != derivativeId ||
+        derivative["capture_id"]?.toString() != captureId ||
+        quality["id"]?.toString() != qualityId ||
+        quality["capture_id"]?.toString() != captureId ||
+        quality["derivative_id"]?.toString() != derivativeId) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server preprocessing response does not match the queued resources.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: qualityId);
   }
 
   Future<SyncExecutionSuccess> _executeOcr(
@@ -504,6 +570,53 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(
       remoteResourceId: operation.resourceId,
     );
+  }
+
+  Future<ReconciliationResult> _reconcileProcessCapture(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final captureId = _requiredString(payload, "capture_id");
+    final derivativeId = _requiredString(payload, "derivative_id");
+    final qualityId = _requiredString(payload, "quality_assessment_id");
+
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/captures/" +
+          Uri.encodeComponent(captureId) +
+          "/process-runs/" +
+          Uri.encodeComponent(qualityId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "capture preprocessing",
+    );
+    final derivative = _requiredReconciliationMap(
+      decoded,
+      "derivative",
+      "capture preprocessing",
+    );
+    final quality = _requiredReconciliationMap(
+      decoded,
+      "quality",
+      "capture preprocessing",
+    );
+
+    if (derivative["id"]?.toString() != derivativeId ||
+        derivative["capture_id"]?.toString() != captureId ||
+        quality["id"]?.toString() != qualityId ||
+        quality["capture_id"]?.toString() != captureId ||
+        quality["derivative_id"]?.toString() != derivativeId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    return ReconciliationResult.applied(remoteResourceId: qualityId);
   }
 
   Future<ReconciliationResult> _reconcileOcr(
