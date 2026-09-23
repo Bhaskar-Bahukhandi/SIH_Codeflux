@@ -134,8 +134,8 @@ def evaluate_rules(
             status = RuleEvaluationStatus.MANUAL_VERIFICATION_REQUIRED
             explanation = (
                 "The current extractor did not detect this declaration. OCR/extraction "
-                "non-detection is not proof of physical absence or non-compliance; officer "
-                "verification is required."
+                "non-detection does not establish that the declaration is physically absent; "
+                "officer verification is required."
             )
 
         evaluated.append(
