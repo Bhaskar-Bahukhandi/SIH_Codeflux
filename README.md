@@ -31,7 +31,7 @@ The core workflow is:
 
 ## Current status
 
-**Phase 6 — Officer verification layer**
+**Phase 6 — Officer verification, finalization and evidence-backed reporting**
 
 Implemented foundation now includes:
 
@@ -48,11 +48,14 @@ Implemented foundation now includes:
 - safe preliminary states that do not turn OCR non-detection into an automatic violation;
 - append-only Officer review records for the latest preliminary rule results;
 - explicit accepted / corrected / recheck-required review decisions;
-- structured Officer corrections stored separately from immutable machine evidence.
+- structured Officer corrections stored separately from immutable machine evidence;
+- finalization gates that require current evidence and resolvable Officer review states;
+- immutable finalization snapshots with rule-pack/evidence provenance and SHA-256 integrity;
+- deterministic evidence-backed PDF report generation and protected retrieval.
 
-The project still does **not** claim broad declaration coverage, physical font-size measurement, final violation findings, inspection finalization, PDF inspection reports or offline synchronization.
+The project still does **not** claim broad declaration coverage, physical font-size measurement, automated penalty/notice issuance or offline synchronization.
 
-A preliminary rule-engine pass remains only an evidence-check result. Phase 6 adds human review without converting that review into a final legal verdict.
+A preliminary rule-engine pass remains only an evidence-check result. Finalization locks the reviewed evidence record and report; it does not invent a penalty or statutory notice.
 
 Real-package image-quality/geometry, OCR and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
 
