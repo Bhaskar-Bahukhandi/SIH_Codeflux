@@ -189,6 +189,133 @@ void main() {
     expect(calls, 1);
   });
 
+  test("submission execution and reconciliation verify lifecycle state", () async {
+    var status = "pending_review";
+    String? reopenedAt;
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" + inspectionId + "/submit",
+        );
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            "id": inspectionId,
+            "status": "pending_review",
+            "submitted_at": "2026-09-23T12:00:00Z",
+            "reopened_for_recheck_at": reopenedAt,
+          }),
+          200,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": inspectionId,
+          "status": status,
+          "submitted_at":
+              status == "pending_review" ? "2026-09-23T12:00:00Z" : null,
+          "reopened_for_recheck_at": reopenedAt,
+        }),
+        200,
+      );
+    });
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-submit",
+      inspectionId: inspectionId,
+      type: SyncOperationType.submitInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{
+        "reopened_for_recheck_at": null,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      inspectionId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    status = "draft";
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+
+    reopenedAt = "2026-09-23T12:30:00Z";
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+  });
+
+  test("recheck reopening reconciles by changed reopen timestamp", () async {
+    const previous = "2026-09-23T11:00:00.000Z";
+    var status = "draft";
+    var reopenedAt = "2026-09-23T13:00:00.000Z";
+
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/reopen-for-recheck",
+        );
+      }
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": inspectionId,
+          "status": status,
+          "submitted_at": status == "pending_review"
+              ? "2026-09-23T12:00:00Z"
+              : null,
+          "reopened_for_recheck_at": reopenedAt,
+        }),
+        200,
+      );
+    });
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-reopen",
+      inspectionId: inspectionId,
+      type: SyncOperationType.reopenForRecheck,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{
+        "previous_reopened_for_recheck_at": previous,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      inspectionId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    status = "pending_review";
+    reopenedAt = previous;
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+  });
+
   test("Officer review execution verifies returned review identity", () async {
     const reviewId = "89898989-8989-4898-8898-898989898989";
     const resultId = "90909090-9090-4090-8090-909090909090";
