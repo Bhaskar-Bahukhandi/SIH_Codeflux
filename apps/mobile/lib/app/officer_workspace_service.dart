@@ -92,6 +92,41 @@ class OfficerWorkspaceService {
     return List<OfficerInspectionWorkspaceItem>.unmodifiable(items);
   }
 
+  Future<OfficerInspectionWorkspaceItem> inspection(
+    String inspectionId,
+  ) async {
+    final officer = await _requireOfficerIdentity();
+    final inspection = await drafts.getInspection(inspectionId);
+    if (inspection == null ||
+        inspection.officerUserId != officer.userId) {
+      throw StateError(
+        "Inspection is unavailable for the current Officer.",
+      );
+    }
+    final evidence = await drafts.listEvidenceForInspection(
+      inspectionId,
+    );
+    return OfficerInspectionWorkspaceItem(
+      inspection: inspection,
+      syncSummary: await queue.inspectionSyncSummary(inspectionId),
+      evidenceCount: evidence.length,
+    );
+  }
+
+  Future<List<LocalEvidenceRecord>> listEvidence(
+    String inspectionId,
+  ) async {
+    final officer = await _requireOfficerIdentity();
+    final inspection = await drafts.getInspection(inspectionId);
+    if (inspection == null ||
+        inspection.officerUserId != officer.userId) {
+      throw StateError(
+        "Inspection is unavailable for the current Officer.",
+      );
+    }
+    return drafts.listEvidenceForInspection(inspectionId);
+  }
+
   Future<LocalInspectionCreation> createInspection({
     required String productName,
     String? productIdentifier,
