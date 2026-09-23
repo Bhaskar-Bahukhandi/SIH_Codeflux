@@ -61,6 +61,32 @@ void main() {
     expect(capture.payload["size_bytes"], 123);
   });
 
+  test("preprocessing factory preserves paired stable output IDs", () {
+    final factory = SyncOperationFactory();
+    const inspectionId = "51515151-5151-4515-8515-515151515151";
+    const captureId = "52525252-5252-4525-8525-525252525252";
+    const derivativeId = "53535353-5353-4535-8535-535353535353";
+    const qualityId = "54545454-5454-4545-8545-545454545454";
+    const uploadDependency = "55555555-aaaa-4555-8555-555555555555";
+    const operationId = "56565656-5656-4565-8565-565656565656";
+
+    final processing = factory.processCapture(
+      inspectionId: inspectionId,
+      captureId: captureId,
+      derivativeId: derivativeId,
+      qualityAssessmentId: qualityId,
+      dependencyIds: const <String>[uploadDependency],
+      operationId: operationId,
+    );
+
+    expect(processing.type, SyncOperationType.processCapture);
+    expect(processing.resourceId, qualityId);
+    expect(processing.payload["capture_id"], captureId);
+    expect(processing.payload["derivative_id"], derivativeId);
+    expect(processing.payload["quality_assessment_id"], qualityId);
+    expect(processing.dependencyIds, const <String>[uploadDependency]);
+  });
+
   test("factory preserves stable run IDs and explicit pipeline dependencies", () {
     final factory = SyncOperationFactory();
     const inspectionId = "31313131-3131-4313-8313-313131313131";
