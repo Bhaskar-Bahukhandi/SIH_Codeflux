@@ -103,7 +103,13 @@ def _capture_references(
         )
     )
 
-    capture_ids = observed_capture_ids or list(extraction_run.source_capture_ids)
+    fallback_capture_ids = list(extraction_run.source_capture_ids)
+    fallback_capture_ids.extend(
+        item["capture_id"]
+        for item in extraction_run.skipped_sources
+        if isinstance(item, dict) and isinstance(item.get("capture_id"), str)
+    )
+    capture_ids = observed_capture_ids or list(dict.fromkeys(fallback_capture_ids))
     if not capture_ids:
         return []
 
