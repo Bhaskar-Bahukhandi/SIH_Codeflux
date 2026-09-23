@@ -644,3 +644,41 @@ def test_snapshot_integrity_failure_is_not_returned_or_reported(
     assert report.json()["error"]["code"] == (
         "finalization_snapshot_integrity_failed"
     )
+
+
+def test_finalization_rejects_review_actor_chain_tampering(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    owner = user_factory(UserRole.OFFICER)
+    other = user_factory(UserRole.OFFICER)
+    headers = auth_headers(owner)
+    inspection = create_inspection(client, headers)
+    _, result, _, _ = seed_rule_result(
+        db_session,
+        inspection_id=inspection["id"],
+        officer_id=owner.id,
+    )
+    submit(client, inspection["id"], headers)
+
+    reviewed = review(
+        client,
+        inspection["id"],
+        result.id,
+        headers,
+        {"decision": "accepted"},
+    )
+    assert reviewed.status_code == 200
+
+    from app.models.officer_review import OfficerRuleReview
+
+    review_record = db_session.get(OfficerRuleReview, reviewed.json()["id"])
+    review_record.officer_user_id = other.id
+    db_session.commit()
+
+    response = finalize(client, inspection["id"], headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "officer_review_chain_invalid"
