@@ -2,8 +2,9 @@ import "dart:io";
 
 import "package:path/path.dart" as p;
 import "package:path_provider/path_provider.dart";
-import "package:sqflite/sqflite.dart";
-import "package:sqflite_common/sqlite_api.dart";
+import "package:sqflite/sqflite.dart" show databaseFactory;
+import "package:sqflite_common/sqlite_api.dart"
+    show Database, DatabaseFactory, OpenDatabaseOptions;
 
 class OfflineDatabase {
   OfflineDatabase._(this.database);
