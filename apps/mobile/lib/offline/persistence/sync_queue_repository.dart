@@ -343,21 +343,32 @@ class SyncQueueRepository {
       return;
     }
 
-    await offlineDatabase.database.update(
-      "sync_operations",
-      <String, Object?>{
-        "next_attempt_at": retryPolicy
-            .nextAttemptAt(timestamp, operation.attemptCount)
-            .toIso8601String(),
-        "last_error_kind": "reconciled_not_applied",
-        "last_error_code": null,
-        "last_error_message":
-            "Server reconciliation confirmed the previous request was not applied.",
-        "updated_at": timestamp.toIso8601String(),
-      },
-      where: "id = ?",
-      whereArgs: <Object?>[id],
-    );
+    const reconciledMessage =
+        "Server reconciliation confirmed the previous request was not applied.";
+    await offlineDatabase.database.transaction((txn) async {
+      await txn.update(
+        "sync_operations",
+        <String, Object?>{
+          "next_attempt_at": retryPolicy
+              .nextAttemptAt(timestamp, operation.attemptCount)
+              .toIso8601String(),
+          "last_error_kind": "reconciled_not_applied",
+          "last_error_code": null,
+          "last_error_message": reconciledMessage,
+          "updated_at": timestamp.toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: <Object?>[id],
+      );
+      await _projectResourceState(
+        txn,
+        operation,
+        SyncState.retryRequired,
+        errorKind: "reconciled_not_applied",
+        errorMessage: reconciledMessage,
+        updatedAt: timestamp,
+      );
+    });
   }
 
   Future<void> recordReconciliationFailure(
