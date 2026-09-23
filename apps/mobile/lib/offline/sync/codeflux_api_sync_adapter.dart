@@ -32,6 +32,12 @@ class CodefluxApiSyncAdapter
         _executeCreateInspection(operation),
       SyncOperationType.uploadCapture =>
         _executeUploadCapture(operation),
+      SyncOperationType.runOcr =>
+        _executeOcr(operation),
+      SyncOperationType.extractDeclarations =>
+        _executeDeclarationExtraction(operation),
+      SyncOperationType.evaluateRules =>
+        _executeRuleEvaluation(operation),
       SyncOperationType.createOfficerReview =>
         _executeOfficerReview(operation),
       _ => throw UnsupportedError(
@@ -49,6 +55,12 @@ class CodefluxApiSyncAdapter
         _reconcileInspection(operation),
       SyncOperationType.uploadCapture =>
         _reconcileCapture(operation),
+      SyncOperationType.runOcr =>
+        _reconcileOcr(operation),
+      SyncOperationType.extractDeclarations =>
+        _reconcileDeclarationExtraction(operation),
+      SyncOperationType.evaluateRules =>
+        _reconcileRuleEvaluation(operation),
       SyncOperationType.createOfficerReview =>
         _reconcileOfficerReview(operation),
       _ => Future<ReconciliationResult>.value(
@@ -195,6 +207,142 @@ class CodefluxApiSyncAdapter
     }
 
     return SyncExecutionSuccess(remoteResourceId: remoteId);
+  }
+
+  Future<SyncExecutionSuccess> _executeOcr(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final runId = _requiredString(payload, "id");
+    final captureId = _requiredString(payload, "capture_id");
+    if (runId != operation.resourceId) {
+      throw StateError(
+        "OCR run payload ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/captures/" +
+            Uri.encodeComponent(captureId) +
+            "/ocr/run",
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{"id": runId});
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "OCR run",
+    );
+    final run = _requiredResponseMap(decoded, "run", "OCR run");
+    if (run["id"]?.toString() != runId ||
+        run["capture_id"]?.toString() != captureId) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message: "Server OCR response does not match the queued run.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: runId);
+  }
+
+  Future<SyncExecutionSuccess> _executeDeclarationExtraction(
+    SyncOperation operation,
+  ) async {
+    final runId = _requiredString(operation.payload, "id");
+    if (runId != operation.resourceId) {
+      throw StateError(
+        "Declaration extraction payload ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/declarations/extract",
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{"id": runId});
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "declaration extraction",
+    );
+    final run = _requiredResponseMap(
+      decoded,
+      "run",
+      "declaration extraction",
+    );
+    if (run["id"]?.toString() != runId ||
+        run["inspection_id"]?.toString() != operation.inspectionId) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server declaration extraction response does not match the queued run.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: runId);
+  }
+
+  Future<SyncExecutionSuccess> _executeRuleEvaluation(
+    SyncOperation operation,
+  ) async {
+    final runId = _requiredString(operation.payload, "id");
+    final context = _requiredPayloadMap(operation.payload, "context");
+    if (runId != operation.resourceId) {
+      throw StateError(
+        "Rule-evaluation payload ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/rule-evaluations/evaluate",
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{
+        "id": runId,
+        "context": context,
+      });
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "rule evaluation",
+    );
+    final run = _requiredResponseMap(decoded, "run", "rule evaluation");
+    if (run["id"]?.toString() != runId ||
+        run["inspection_id"]?.toString() != operation.inspectionId ||
+        canonicalJsonEncode(run["context_snapshot"]) !=
+            canonicalJsonEncode(context)) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server rule-evaluation response does not match the queued run.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: runId);
   }
 
   Future<SyncExecutionSuccess> _executeOfficerReview(
@@ -357,6 +505,104 @@ class CodefluxApiSyncAdapter
     );
   }
 
+  Future<ReconciliationResult> _reconcileOcr(
+    SyncOperation operation,
+  ) async {
+    final runId = _requiredString(operation.payload, "id");
+    final captureId = _requiredString(operation.payload, "capture_id");
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/captures/" +
+          Uri.encodeComponent(captureId) +
+          "/ocr/runs/" +
+          Uri.encodeComponent(runId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "OCR run",
+    );
+    final run = _requiredReconciliationMap(decoded, "run", "OCR run");
+    if (run["id"]?.toString() != runId ||
+        run["capture_id"]?.toString() != captureId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    return ReconciliationResult.applied(remoteResourceId: runId);
+  }
+
+  Future<ReconciliationResult> _reconcileDeclarationExtraction(
+    SyncOperation operation,
+  ) async {
+    final runId = _requiredString(operation.payload, "id");
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/declarations/runs/" +
+          Uri.encodeComponent(runId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "declaration extraction",
+    );
+    final run = _requiredReconciliationMap(
+      decoded,
+      "run",
+      "declaration extraction",
+    );
+    if (run["id"]?.toString() != runId ||
+        run["inspection_id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    return ReconciliationResult.applied(remoteResourceId: runId);
+  }
+
+  Future<ReconciliationResult> _reconcileRuleEvaluation(
+    SyncOperation operation,
+  ) async {
+    final runId = _requiredString(operation.payload, "id");
+    final context = _requiredPayloadMap(operation.payload, "context");
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/rule-evaluations/runs/" +
+          Uri.encodeComponent(runId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "rule evaluation",
+    );
+    final run = _requiredReconciliationMap(
+      decoded,
+      "run",
+      "rule evaluation",
+    );
+    if (run["id"]?.toString() != runId ||
+        run["inspection_id"]?.toString() != operation.inspectionId ||
+        canonicalJsonEncode(run["context_snapshot"]) !=
+            canonicalJsonEncode(context)) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    return ReconciliationResult.applied(remoteResourceId: runId);
+  }
+
   Future<ReconciliationResult> _reconcileOfficerReview(
     SyncOperation operation,
   ) async {
@@ -505,6 +751,64 @@ class CodefluxApiSyncAdapter
               response.statusCode.toString() +
               ".",
     );
+  }
+
+  Map<String, Object?> _requiredPayloadMap(
+    Map<String, Object?> payload,
+    String key,
+  ) {
+    final value = payload[key];
+    if (value is! Map) {
+      throw StateError("Queued payload is missing required object: " + key);
+    }
+    return <String, Object?>{
+      for (final entry in value.entries)
+        entry.key.toString(): entry.value,
+    };
+  }
+
+  Map<String, dynamic> _requiredResponseMap(
+    Map<String, dynamic> response,
+    String key,
+    String resourceLabel,
+  ) {
+    final value = response[key];
+    if (value is! Map) {
+      throw SyncRequestFailure(
+        apiCode: "response_unverifiable",
+        message:
+            "The server returned an unverifiable " +
+            resourceLabel +
+            " success response.",
+        outcomeUnknown: true,
+      );
+    }
+    return <String, dynamic>{
+      for (final entry in value.entries)
+        entry.key.toString(): entry.value,
+    };
+  }
+
+  Map<String, dynamic> _requiredReconciliationMap(
+    Map<String, dynamic> response,
+    String key,
+    String resourceLabel,
+  ) {
+    final value = response[key];
+    if (value is! Map) {
+      throw SyncRequestFailure(
+        statusCode: 502,
+        apiCode: "invalid_reconciliation_response",
+        message:
+            "The server returned an invalid " +
+            resourceLabel +
+            " reconciliation response.",
+      );
+    }
+    return <String, dynamic>{
+      for (final entry in value.entries)
+        entry.key.toString(): entry.value,
+    };
   }
 
   Map<String, dynamic> _decodeMutationMap(
