@@ -1,5 +1,7 @@
 import "dart:convert";
 
+import "package:sqflite_common/sqlite_api.dart";
+
 import "../models/sync_operation.dart";
 import "../models/sync_state.dart";
 import "../sync/failure_classifier.dart";
@@ -93,8 +95,9 @@ class SyncQueueRepository {
       final candidates = await txn.query(
         "sync_operations",
         where:
-            "state IN (?, ?) AND "
-            "(next_attempt_at IS NULL OR next_attempt_at <= ?)",
+            "state = ? OR "
+            "(state = ? AND next_attempt_at IS NOT NULL "
+            "AND next_attempt_at <= ?)",
         whereArgs: <Object?>[
           SyncState.queued.dbValue,
           SyncState.retryRequired.dbValue,
@@ -298,7 +301,7 @@ class SyncQueueRepository {
   }
 
   Future<_DependencyDisposition> _dependencyDisposition(
-    dynamic executor,
+    DatabaseExecutor executor,
     List<String> dependencyIds,
   ) async {
     var waiting = false;
