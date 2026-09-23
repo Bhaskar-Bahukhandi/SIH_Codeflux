@@ -2,7 +2,9 @@
 
 Status: verified for the **narrow supported prototype scope**  
 Rule pack: `lmpc-retail-evidence@2026.09-v1`  
-Source review date: 23 September 2026
+Source review date: 23 September 2026  
+Reviewed by: CODEFLUX project team  
+Review type: engineering source verification; **not legal counsel**
 
 ## Why this document exists
 
