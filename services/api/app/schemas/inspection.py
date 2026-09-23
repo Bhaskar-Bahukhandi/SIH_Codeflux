@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -6,6 +7,7 @@ from app.models.inspection import InspectionStatus
 
 
 class InspectionCreate(BaseModel):
+    id: UUID | None = None
     product_name: str = Field(min_length=1, max_length=200)
     product_identifier: str | None = Field(default=None, max_length=200)
 
