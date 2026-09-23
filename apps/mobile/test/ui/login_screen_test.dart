@@ -66,14 +66,9 @@ void main() {
       ),
     );
 
-    await tester.enterText(
-      find.widgetWithText(TextField, "Email"),
-      "officer@example.test",
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, "Password"),
-      "secret",
-    );
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), "officer@example.test");
+    await tester.enterText(fields.at(1), "secret");
     await tester.tap(find.widgetWithText(FilledButton, "Sign in"));
     await tester.pumpAndSettle();
 
@@ -107,14 +102,9 @@ void main() {
       ),
     );
 
-    await tester.enterText(
-      find.widgetWithText(TextField, "Email"),
-      "officer@example.test",
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, "Password"),
-      "wrong",
-    );
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), "officer@example.test");
+    await tester.enterText(fields.at(1), "wrong");
     await tester.tap(find.widgetWithText(FilledButton, "Sign in"));
     await tester.pumpAndSettle();
 
