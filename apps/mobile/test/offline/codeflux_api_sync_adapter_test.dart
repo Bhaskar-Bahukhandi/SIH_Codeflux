@@ -153,7 +153,10 @@ void main() {
           utf8.encode(
             jsonEncode(<String, Object?>{
               "id": captureId,
+              "inspection_id": inspectionId,
+              "view_type": "front",
               "sha256": digest,
+              "size_bytes": bytes.length,
             }),
           ),
         ),
@@ -184,6 +187,98 @@ void main() {
     final result = await adapter.execute(operation);
     expect(result.remoteResourceId, captureId);
     expect(calls, 1);
+  });
+
+  test("Officer review execution verifies returned review identity", () async {
+    const reviewId = "89898989-8989-4898-8898-898989898989";
+    const resultId = "90909090-9090-4090-8090-909090909090";
+
+    final client = MockClient((request) async {
+      expect(request.method, "POST");
+      expect(
+        request.url.path,
+        "/api/v1/inspections/" +
+            inspectionId +
+            "/rule-reviews/" +
+            resultId,
+      );
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(body["id"], reviewId);
+      expect(body["decision"], "accepted");
+      expect(body["note"], "Verified.");
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": reviewId,
+          "inspection_id": inspectionId,
+          "rule_evaluation_result_id": resultId,
+          "decision": "accepted",
+          "corrected_value": null,
+          "note": "Verified.",
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-review",
+      inspectionId: inspectionId,
+      type: SyncOperationType.createOfficerReview,
+      resourceId: reviewId,
+      payload: const <String, Object?>{
+        "id": reviewId,
+        "rule_evaluation_result_id": resultId,
+        "decision": "accepted",
+        "note": "Verified.",
+      },
+    );
+
+    final result = await adapter.execute(operation);
+    expect(result.remoteResourceId, reviewId);
+  });
+
+  test("malformed success response is outcome-unknown, not accepted", () async {
+    final client = MockClient((request) async {
+      return http.Response("not-json", 201);
+    });
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-inspection-malformed",
+      inspectionId: inspectionId,
+      type: SyncOperationType.createInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{
+        "id": inspectionId,
+        "product_name": "Offline Product",
+        "product_identifier": null,
+      },
+    );
+
+    await expectLater(
+      adapter.execute(operation),
+      throwsA(
+        isA<SyncRequestFailure>()
+            .having(
+              (error) => error.apiCode,
+              "apiCode",
+              "response_unverifiable",
+            )
+            .having(
+              (error) => error.outcomeUnknown,
+              "outcomeUnknown",
+              isTrue,
+            ),
+      ),
+    );
   });
 
   test("capture integrity mismatch fails before network request", () async {
