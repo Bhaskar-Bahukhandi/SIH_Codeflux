@@ -13,17 +13,19 @@ void main() {
     expect(decision.requiresReconciliation, isTrue);
   });
 
-  test("transport and generic server failures are retriable", () {
+  test("transport and 5xx outcomes require reconciliation before retry", () {
     final transport = SyncFailureClassifier.classify(
       transportUnavailable: true,
     );
     expect(transport.targetState, SyncState.retryRequired);
-    expect(transport.autoRetry, isTrue);
+    expect(transport.autoRetry, isFalse);
+    expect(transport.requiresReconciliation, isTrue);
 
     final server = SyncFailureClassifier.classify(statusCode: 503);
     expect(server.kind, SyncFailureKind.serverRetriable);
     expect(server.targetState, SyncState.retryRequired);
-    expect(server.autoRetry, isTrue);
+    expect(server.autoRetry, isFalse);
+    expect(server.requiresReconciliation, isTrue);
   });
 
   test("authentication and validation failures are blocked", () {
