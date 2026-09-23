@@ -5,8 +5,10 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.declaration import DeclarationExtractionRun
 from app.models.officer_review import OfficerRuleReview
 from app.models.rule_evaluation import RuleEvaluationRun
+from app.services.declaration_sources import collect_current_ocr_sources
 
 
 def latest_rule_evaluation_run(
@@ -51,22 +53,48 @@ def latest_officer_reviews_by_result(
     return latest
 
 
-def has_rule_evaluation_after(
+def rule_evaluation_matches_current_evidence(
+    db: Session,
+    *,
+    inspection_id: str,
+    run: RuleEvaluationRun,
+) -> bool:
+    extraction_run = db.get(
+        DeclarationExtractionRun,
+        run.source_extraction_run_id,
+    )
+    if extraction_run is None or extraction_run.inspection_id != inspection_id:
+        return False
+
+    current = collect_current_ocr_sources(
+        db,
+        inspection_id=inspection_id,
+    )
+    return (
+        extraction_run.inspection_capture_count
+        == current.inspection_capture_count
+        and extraction_run.source_capture_ids == current.source_capture_ids
+        and extraction_run.source_ocr_run_ids == current.source_ocr_run_ids
+        and extraction_run.skipped_sources == current.skipped_sources
+    )
+
+
+def has_current_rule_evaluation_after(
     db: Session,
     *,
     inspection_id: str,
     after: datetime,
 ) -> bool:
-    run_id = db.scalar(
-        select(RuleEvaluationRun.id)
-        .where(
-            RuleEvaluationRun.inspection_id == inspection_id,
-            RuleEvaluationRun.created_at > after,
-        )
-        .order_by(
-            RuleEvaluationRun.created_at.desc(),
-            RuleEvaluationRun.id.desc(),
-        )
-        .limit(1)
+    run = latest_rule_evaluation_run(
+        db,
+        inspection_id=inspection_id,
     )
-    return run_id is not None
+    return (
+        run is not None
+        and run.created_at > after
+        and rule_evaluation_matches_current_evidence(
+            db,
+            inspection_id=inspection_id,
+            run=run,
+        )
+    )
