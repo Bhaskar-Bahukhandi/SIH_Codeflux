@@ -87,11 +87,69 @@ class LocalDraftRepository {
 
     final rows = await offlineDatabase.database.query(
       "local_inspections",
-      where: "officer_user_id = ?",
+      where: "officer_user_id = ? AND discarded_at IS NULL",
       whereArgs: <Object?>[normalizedOfficerId],
       orderBy: "updated_at DESC, created_at DESC, id ASC",
     );
     return rows.map(_inspectionFromRow).toList(growable: false);
+  }
+
+  Future<LocalInspectionDraft> updateInspectionDetails({
+    required String id,
+    required String productName,
+    String? productIdentifier,
+    DateTime? now,
+  }) async {
+    final current = await getInspection(id);
+    if (current == null) {
+      throw StateError("Local inspection does not exist.");
+    }
+
+    final normalizedName = productName.trim();
+    if (normalizedName.isEmpty) {
+      throw ArgumentError.value(productName, "productName", "Must not be blank.");
+    }
+    final normalizedIdentifier = productIdentifier?.trim();
+    final finalIdentifier =
+        normalizedIdentifier == null || normalizedIdentifier.isEmpty
+            ? null
+            : normalizedIdentifier;
+
+    await offlineDatabase.database.update(
+      "local_inspections",
+      <String, Object?>{
+        "product_name": normalizedName,
+        "product_identifier": finalIdentifier,
+        "updated_at": (now ?? DateTime.now().toUtc()).toUtc().toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: <Object?>[id],
+    );
+    return (await getInspection(id))!;
+  }
+
+  Future<void> markInspectionDiscarded(
+    String id, {
+    DateTime? now,
+  }) async {
+    final current = await getInspection(id);
+    if (current == null) {
+      throw StateError("Local inspection does not exist.");
+    }
+    final updated = await offlineDatabase.database.update(
+      "local_inspections",
+      <String, Object?>{
+        "discarded_at":
+            (now ?? DateTime.now().toUtc()).toUtc().toIso8601String(),
+        "updated_at":
+            (now ?? DateTime.now().toUtc()).toUtc().toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: <Object?>[id],
+    );
+    if (updated != 1) {
+      throw StateError("Discarding the local inspection did not update exactly one row.");
+    }
   }
 
   Future<LocalEvidenceRecord> registerEvidence({

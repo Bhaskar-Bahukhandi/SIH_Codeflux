@@ -6,6 +6,8 @@ import "sync_state.dart";
 
 enum SyncOperationType {
   createInspection("create_inspection"),
+  updateInspection("update_inspection"),
+  discardInspection("discard_inspection"),
   uploadCapture("upload_capture"),
   processCapture("process_capture"),
   analyzeGeometry("analyze_geometry"),

@@ -93,6 +93,130 @@ class FieldInspectionWorkflowService {
     );
   }
 
+  Future<void> updateInspectionDetails({
+    required OfficerSessionContext officer,
+    required String inspectionId,
+    required String productName,
+    String? productIdentifier,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    final draft = await _ownedInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+    );
+    final existing = await queue.listForInspection(inspectionId);
+
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.discardInspection,
+    )) {
+      throw StateError("Discarded inspections cannot be edited.");
+    }
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.submitInspection,
+    )) {
+      throw StateError(
+        "Inspection details can only be edited before preliminary review is queued.",
+      );
+    }
+
+    final normalizedName = productName.trim();
+    final normalizedIdentifier = productIdentifier?.trim();
+    final finalIdentifier =
+        normalizedIdentifier == null || normalizedIdentifier.isEmpty
+            ? null
+            : normalizedIdentifier;
+    if (draft.productName == normalizedName &&
+        draft.productIdentifier == finalIdentifier) {
+      return;
+    }
+
+    final createOperation = await ensureInspectionQueued(
+      officer: officer,
+      inspectionId: inspectionId,
+      now: now,
+    );
+    final updates = existing
+        .where(
+          (operation) => operation.type == SyncOperationType.updateInspection,
+        )
+        .toList(growable: false);
+    final dependencyId =
+        updates.isEmpty ? createOperation.id : updates.last.id;
+
+    await drafts.updateInspectionDetails(
+      id: inspectionId,
+      productName: normalizedName,
+      productIdentifier: finalIdentifier,
+      now: now,
+    );
+
+    try {
+      await queue.enqueue(
+        operationFactory.updateInspection(
+          inspectionId: inspectionId,
+          productName: normalizedName,
+          productIdentifier: finalIdentifier,
+          dependencyIds: <String>[dependencyId],
+          now: now,
+        ),
+      );
+    } catch (_) {
+      await drafts.updateInspectionDetails(
+        id: inspectionId,
+        productName: draft.productName,
+        productIdentifier: draft.productIdentifier,
+        now: now,
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> discardInspection({
+    required OfficerSessionContext officer,
+    required String inspectionId,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    await _ownedInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+    );
+    final existing = await queue.listForInspection(inspectionId);
+
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.submitInspection,
+    )) {
+      throw StateError(
+        "An inspection cannot be discarded after preliminary review has been queued.",
+      );
+    }
+
+    final existingDiscard = existing.where(
+      (operation) => operation.type == SyncOperationType.discardInspection,
+    );
+    if (existingDiscard.isNotEmpty) {
+      await drafts.markInspectionDiscarded(inspectionId, now: now);
+      return;
+    }
+
+    final createOperation = await ensureInspectionQueued(
+      officer: officer,
+      inspectionId: inspectionId,
+      now: now,
+    );
+    await queue.cancelPendingWorkForInspectionDiscard(inspectionId);
+
+    await queue.enqueue(
+      operationFactory.discardInspection(
+        inspectionId: inspectionId,
+        dependencyIds: <String>[createOperation.id],
+        now: now,
+      ),
+    );
+    await drafts.markInspectionDiscarded(inspectionId, now: now);
+  }
+
   Future<SyncOperation> ensureInspectionQueued({
     required OfficerSessionContext officer,
     required String inspectionId,
@@ -246,6 +370,15 @@ class FieldInspectionWorkflowService {
     }
 
     final existing = await queue.listForInspection(inspectionId);
+    final detailUpdates = existing
+        .where(
+          (operation) => operation.type == SyncOperationType.updateInspection,
+        )
+        .toList(growable: false);
+    if (detailUpdates.isNotEmpty) {
+      ocrDependencies.add(detailUpdates.last.id);
+    }
+
     final extractionExisting = _singleType(
       existing,
       SyncOperationType.extractDeclarations,

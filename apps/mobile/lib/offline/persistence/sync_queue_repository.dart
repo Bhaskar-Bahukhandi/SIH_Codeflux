@@ -119,6 +119,40 @@ class SyncQueueRepository {
     );
   }
 
+  Future<void> cancelPendingWorkForInspectionDiscard(
+    String inspectionId,
+  ) async {
+    final operations = await listForInspection(inspectionId);
+    if (operations.any((operation) => operation.state == SyncState.syncing)) {
+      throw StateError(
+        "Wait for the current synchronization attempt to finish before discarding this inspection.",
+      );
+    }
+
+    final deletableIds = operations
+        .where(
+          (operation) =>
+              operation.state != SyncState.synced &&
+              operation.type != SyncOperationType.createInspection,
+        )
+        .map((operation) => operation.id)
+        .toList(growable: false);
+
+    if (deletableIds.isEmpty) {
+      return;
+    }
+
+    await offlineDatabase.database.transaction((txn) async {
+      for (final id in deletableIds) {
+        await txn.delete(
+          "sync_operations",
+          where: "id = ?",
+          whereArgs: <Object?>[id],
+        );
+      }
+    });
+  }
+
   Future<SyncOperation?> getById(String id) async {
     final rows = await offlineDatabase.database.query(
       "sync_operations",

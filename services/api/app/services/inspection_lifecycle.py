@@ -40,3 +40,9 @@ def reopen_for_recheck(inspection: Inspection) -> None:
 def finalize_inspection(inspection: Inspection) -> None:
     require_pending_review(inspection)
     inspection.status = InspectionStatus.FINALIZED
+
+
+def discard_draft(inspection: Inspection) -> None:
+    require_draft(inspection)
+    inspection.status = InspectionStatus.DISCARDED
+    inspection.submitted_at = None

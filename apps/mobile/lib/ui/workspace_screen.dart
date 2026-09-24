@@ -128,6 +128,93 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
   }
 
+  Future<void> _editInspection(
+    OfficerInspectionWorkspaceItem item,
+  ) async {
+    final draft = await showDialog<_NewInspectionDraft>(
+      context: context,
+      builder: (_) => _EditInspectionDialog(
+        productName: item.inspection.productName,
+        productIdentifier: item.inspection.productIdentifier,
+      ),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+
+    try {
+      await widget.workspace.updateInspectionDetails(
+        inspectionId: item.inspection.id,
+        productName: draft.productName,
+        productIdentifier: draft.productIdentifier,
+      );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Inspection details updated locally. Sync to apply them to the server.",
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not edit inspection: $error")),
+      );
+    }
+  }
+
+  Future<void> _discardInspection(
+    OfficerInspectionWorkspaceItem item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Discard inspection?"),
+        content: Text(
+          "Discard \"${item.inspection.productName}\"? "
+          "It will disappear from this Officer list immediately. "
+          "The next sync records an audited discard on the server. "
+          "This is available only before preliminary review is queued.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Discard"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    try {
+      await widget.workspace.discardInspection(
+        inspectionId: item.inspection.id,
+      );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Inspection discarded locally. Sync to apply the audited discard to the server.",
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not discard inspection: $error")),
+      );
+    }
+  }
+
   Future<void> _syncNow() async {
     if (_syncing) return;
     setState(() => _syncing = true);
@@ -310,7 +397,35 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         "${item.evidenceCount} image(s) · "
                         "${_stateLabel(item.syncSummary.overallState)}",
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: "Inspection actions",
+                        enabled: !_syncing,
+                        onSelected: (value) {
+                          if (value == "edit") {
+                            unawaited(_editInspection(item));
+                          } else if (value == "discard") {
+                            unawaited(_discardInspection(item));
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: "edit",
+                            child: ListTile(
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text("Edit details"),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: "discard",
+                            child: ListTile(
+                              leading: Icon(Icons.delete_outline),
+                              title: Text("Discard inspection"),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
+                      ),
                       onTap: () async {
                         await Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -436,6 +551,104 @@ class _CreateInspectionDialogState extends State<_CreateInspectionDialog> {
         FilledButton(
           onPressed: _submit,
           child: const Text("Create"),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditInspectionDialog extends StatefulWidget {
+  const _EditInspectionDialog({
+    required this.productName,
+    this.productIdentifier,
+  });
+
+  final String productName;
+  final String? productIdentifier;
+
+  @override
+  State<_EditInspectionDialog> createState() =>
+      _EditInspectionDialogState();
+}
+
+class _EditInspectionDialogState extends State<_EditInspectionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _productController;
+  late final TextEditingController _identifierController;
+
+  @override
+  void initState() {
+    super.initState();
+    _productController = TextEditingController(text: widget.productName);
+    _identifierController = TextEditingController(
+      text: widget.productIdentifier ?? "",
+    );
+  }
+
+  @override
+  void dispose() {
+    _productController.dispose();
+    _identifierController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final identifier = _identifierController.text.trim();
+    Navigator.pop(
+      context,
+      _NewInspectionDraft(
+        productName: _productController.text.trim(),
+        productIdentifier: identifier.isEmpty ? null : identifier,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Edit inspection"),
+      content: Form(
+        key: _formKey,
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _productController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: "Product name",
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return "Product name is required.";
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _identifierController,
+                decoration: const InputDecoration(
+                  labelText: "Product identifier (optional)",
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text("Save"),
         ),
       ],
     );

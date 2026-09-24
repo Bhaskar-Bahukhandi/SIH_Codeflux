@@ -7,13 +7,14 @@ from app.auth import get_current_user, require_officer
 from app.db import get_db
 from app.errors import conflict
 from app.models.audit import AuditEventType
-from app.models.inspection import Inspection
+from app.models.inspection import Inspection, InspectionStatus
 from app.models.officer_review import OfficerReviewDecision
 from app.models.user import User, UserRole
 from app.schemas.inspection import InspectionCreate, InspectionRead, InspectionUpdate
 from app.services.audit import record_inspection_event
 from app.services.inspection_access import get_visible_inspection_or_raise
 from app.services.inspection_lifecycle import (
+    discard_draft,
     reopen_for_recheck,
     require_draft,
     require_pending_review,
@@ -113,7 +114,11 @@ def list_inspections(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[Inspection]:
-    statement = select(Inspection).order_by(Inspection.created_at.desc())
+    statement = (
+        select(Inspection)
+        .where(Inspection.status != InspectionStatus.DISCARDED)
+        .order_by(Inspection.created_at.desc())
+    )
     if user.role is UserRole.OFFICER:
         statement = statement.where(Inspection.officer_id == user.id)
     return list(db.scalars(statement).all())
@@ -165,6 +170,35 @@ def update_draft_inspection(
             event_type=AuditEventType.INSPECTION_UPDATED,
             details={"changes": changes},
         )
+
+    db.commit()
+    db.refresh(inspection)
+    return inspection
+
+
+@router.post("/{inspection_id}/discard", response_model=InspectionRead)
+def discard_inspection(
+    inspection_id: str,
+    db: Session = Depends(get_db),
+    officer: User = Depends(require_officer),
+) -> Inspection:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    if inspection.status is InspectionStatus.DISCARDED:
+        return inspection
+
+    previous_status = inspection.status.value
+    discard_draft(inspection)
+
+    record_inspection_event(
+        db,
+        inspection_id=inspection.id,
+        actor_user_id=officer.id,
+        event_type=AuditEventType.INSPECTION_DISCARDED,
+        details={
+            "from_status": previous_status,
+            "to_status": inspection.status.value,
+        },
+    )
 
     db.commit()
     db.refresh(inspection)
