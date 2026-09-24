@@ -313,6 +313,46 @@ class CodefluxApiSyncAdapter
     return SyncExecutionSuccess(remoteResourceId: remoteId);
   }
 
+  Future<SyncExecutionSuccess> _executeDiscardCapture(
+    SyncOperation operation,
+  ) async {
+    final captureId = _requiredString(operation.payload, "capture_id");
+    if (captureId != operation.resourceId) {
+      throw StateError(
+        "Discard-capture payload ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/captures/" +
+            Uri.encodeComponent(captureId) +
+            "/discard",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "capture discard",
+    );
+    if (decoded["id"]?.toString() != captureId ||
+        decoded["inspection_id"]?.toString() != operation.inspectionId ||
+        decoded["discarded_at"] == null) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message: "Server capture discard response does not confirm discard.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: captureId);
+  }
+
   Future<SyncExecutionSuccess> _executeProcessCapture(
     SyncOperation operation,
   ) async {
@@ -832,6 +872,36 @@ class CodefluxApiSyncAdapter
 
     return ReconciliationResult.applied(
       remoteResourceId: operation.resourceId,
+    );
+  }
+
+  Future<ReconciliationResult> _reconcileDiscardCapture(
+    SyncOperation operation,
+  ) async {
+    final captureId = _requiredString(operation.payload, "capture_id");
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/captures",
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationList(
+      response.body,
+      resourceLabel: "capture list",
+    );
+    final stillActive = decoded.any(
+      (item) => item is Map && item["id"]?.toString() == captureId,
+    );
+    if (stillActive) {
+      return const ReconciliationResult.notApplied();
+    }
+
+    return ReconciliationResult.applied(
+      remoteResourceId: captureId,
     );
   }
 
