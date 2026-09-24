@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from app.evaluation.declarations import (
@@ -193,3 +194,135 @@ def test_manifest_rejects_out_of_range_ocr_score(tmp_path):
         assert "between 0 and 1" in str(exc)
     else:
         raise AssertionError("Expected invalid OCR confidence to be rejected.")
+
+
+def test_unlabeled_web_reference_is_observed_without_affecting_metrics(tmp_path):
+    manifest = write_manifest(
+        tmp_path,
+        [
+            {
+                "case_id": "web-1",
+                "dataset_type": "web_reference",
+                "block_source": "actual_ocr",
+                "ocr_blocks": [
+                    {
+                        "block_id": "b0",
+                        "text": "NET QUANTITY: 200 g",
+                        "confidence": 0.96,
+                    }
+                ],
+                "expected_declarations": None,
+                "source_page_url": "https://example.com/products/package",
+                "notes": "Official package reference.",
+            }
+        ],
+    )
+
+    report = evaluate_declaration_manifest(manifest)
+
+    assert report["manifest"] == "manifest.json"
+    assert report["manifest_sha256"] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+    assert report["input_provenance_version"] == "declaration-input-sha256-v1"
+    assert report["dataset_counts"]["web_reference"] == 1
+    assert report["dataset_counts"]["real_package"] == 0
+    assert report["labeled_case_count"] == 0
+    assert report["unlabeled_case_count"] == 1
+    assert report["web_reference_actual_ocr_case_count"] == 1
+    assert report["web_reference_actual_ocr_labeled_count"] == 0
+    assert report["web_reference_source_domains"] == ["example.com"]
+    assert report["web_reference_actual_ocr_predicted_declaration_count"] == 1
+
+    case = report["cases"][0]
+    assert case["labeled"] is False
+    assert case["exact_match"] is None
+    assert case["expected"] is None
+    assert len(case["predicted"]) == 1
+    assert case["false_positives"] == []
+    assert case["false_negatives"] == []
+
+    assert report["overall"] == {
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 0,
+        "precision": None,
+        "recall": None,
+        "f1": None,
+    }
+    assert declaration_gate_failures(report, require_real_actual_ocr=1) == [
+        "real_actual_ocr_count:0<1"
+    ]
+
+
+def test_empty_expected_declarations_remains_a_labeled_negative_case(tmp_path):
+    manifest = write_manifest(
+        tmp_path,
+        [
+            {
+                "case_id": "negative-1",
+                "dataset_type": "synthetic",
+                "block_source": "synthetic",
+                "ocr_blocks": [
+                    {
+                        "text": "MRP Rs. 50.00",
+                        "confidence": 0.95,
+                    }
+                ],
+                "expected_declarations": [],
+                "notes": "Explicit labeled negative.",
+            }
+        ],
+    )
+
+    report = evaluate_declaration_manifest(manifest)
+
+    assert report["labeled_case_count"] == 1
+    assert report["unlabeled_case_count"] == 0
+    assert report["cases"][0]["labeled"] is True
+    assert report["cases"][0]["exact_match"] is False
+    assert len(report["cases"][0]["false_positives"]) == 1
+    assert report["overall"]["false_positive"] == 1
+
+
+def test_web_reference_requires_source_page_url(tmp_path):
+    manifest = write_manifest(
+        tmp_path,
+        [
+            {
+                "case_id": "web-missing-source",
+                "dataset_type": "web_reference",
+                "block_source": "actual_ocr",
+                "ocr_blocks": [],
+                "expected_declarations": None,
+                "notes": "",
+            }
+        ],
+    )
+
+    try:
+        evaluate_declaration_manifest(manifest)
+    except ValueError as exc:
+        assert "source_page_url is required" in str(exc)
+    else:
+        raise AssertionError("Expected missing web-reference source URL to fail.")
+
+
+def test_missing_expected_declarations_must_be_explicitly_null_when_unlabeled(tmp_path):
+    manifest = write_manifest(
+        tmp_path,
+        [
+            {
+                "case_id": "missing-label-state",
+                "dataset_type": "synthetic",
+                "block_source": "synthetic",
+                "ocr_blocks": [],
+                "notes": "",
+            }
+        ],
+    )
+
+    try:
+        evaluate_declaration_manifest(manifest)
+    except ValueError as exc:
+        assert "expected_declarations is required" in str(exc)
+    else:
+        raise AssertionError("Expected missing label state to fail.")
