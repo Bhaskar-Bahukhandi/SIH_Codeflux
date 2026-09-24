@@ -556,6 +556,16 @@ void main() {
       ),
       throwsA(isA<StateError>()),
     );
+    await expectLater(
+      workflow.addEvidence(
+        officer: officer(),
+        inspectionId: created.inspection.id,
+        viewType: "back",
+        bytes: Uint8List.fromList(<int>[2, 7, 1, 8]),
+        originalFilename: "late.jpg",
+      ),
+      throwsA(isA<StateError>()),
+    );
   });
 
 }
