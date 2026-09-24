@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from app.models.declaration import DeclarationType
 from app.services.declaration_extractor import (
@@ -13,10 +15,10 @@ from app.services.declaration_extractor import (
     extract_declarations,
 )
 
-DatasetType = Literal["real_package", "synthetic", "other"]
+DatasetType = Literal["real_package", "web_reference", "synthetic", "other"]
 BlockSource = Literal["actual_ocr", "human_transcription", "synthetic"]
 
-_ALLOWED_DATASET_TYPES = {"real_package", "synthetic", "other"}
+_ALLOWED_DATASET_TYPES = {"real_package", "web_reference", "synthetic", "other"}
 _ALLOWED_BLOCK_SOURCES = {"actual_ocr", "human_transcription", "synthetic"}
 
 
@@ -32,7 +34,9 @@ class DeclarationEvaluationCase:
     dataset_type: DatasetType
     block_source: BlockSource
     ocr_blocks: list[OcrTextEvidence]
-    expected_declarations: list[ExpectedDeclaration]
+    expected_declarations: list[ExpectedDeclaration] | None
+    source_page_url: str | None
+    source_domain: str | None
     notes: str
 
 
@@ -58,6 +62,28 @@ def _parse_declaration_type(value: str, *, context: str) -> DeclarationType:
             "by the current extractor."
         )
     return declaration_type
+
+
+def _source_page(
+    value: object,
+    *,
+    dataset_type: str,
+    context: str,
+) -> tuple[str | None, str | None]:
+    source_page_url = str(value or "").strip() or None
+    if source_page_url is None:
+        if dataset_type == "web_reference":
+            raise ValueError(
+                f"{context}: source_page_url is required for web_reference cases."
+            )
+        return None, None
+
+    parsed = urlparse(source_page_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(
+            f"{context}: source_page_url must be an absolute http(s) URL."
+        )
+    return source_page_url, parsed.hostname.lower()
 
 
 def load_declaration_evaluation_manifest(
@@ -131,14 +157,21 @@ def load_declaration_evaluation_manifest(
                 )
             )
 
-        raw_expected = raw_case.get("expected_declarations")
-        if not isinstance(raw_expected, list):
+        if "expected_declarations" not in raw_case:
             raise ValueError(
-                f"{context}: expected_declarations must be a list."
+                f"{context}: expected_declarations is required; use null "
+                "for an explicitly unlabeled observation case."
+            )
+        raw_expected = raw_case.get("expected_declarations")
+        if raw_expected is not None and not isinstance(raw_expected, list):
+            raise ValueError(
+                f"{context}: expected_declarations must be a list or null."
             )
 
-        expected: list[ExpectedDeclaration] = []
-        for expected_index, raw_item in enumerate(raw_expected):
+        expected: list[ExpectedDeclaration] | None = (
+            [] if raw_expected is not None else None
+        )
+        for expected_index, raw_item in enumerate(raw_expected or []):
             item_context = f"{context}, expected {expected_index}"
             if not isinstance(raw_item, dict):
                 raise ValueError(
@@ -153,12 +186,19 @@ def load_declaration_evaluation_manifest(
                 raise ValueError(
                     f"{item_context}: normalized_value must be an object."
                 )
+            assert expected is not None
             expected.append(
                 ExpectedDeclaration(
                     declaration_type=declaration_type,
                     normalized_value=normalized_value,
                 )
             )
+
+        source_page_url, source_domain = _source_page(
+            raw_case.get("source_page_url"),
+            dataset_type=dataset_type,
+            context=context,
+        )
 
         cases.append(
             DeclarationEvaluationCase(
@@ -167,6 +207,8 @@ def load_declaration_evaluation_manifest(
                 block_source=block_source,  # type: ignore[arg-type]
                 ocr_blocks=blocks,
                 expected_declarations=expected,
+                source_page_url=source_page_url,
+                source_domain=source_domain,
                 notes=str(raw_case.get("notes", "")),
             )
         )
@@ -198,7 +240,9 @@ def _metric_summary(tp: int, fp: int, fn: int) -> dict:
 
 
 def evaluate_declaration_manifest(path: Path) -> dict:
-    cases = load_declaration_evaluation_manifest(path)
+    resolved_manifest = path.expanduser().resolve()
+    cases = load_declaration_evaluation_manifest(resolved_manifest)
+    manifest_sha256 = hashlib.sha256(resolved_manifest.read_bytes()).hexdigest()
 
     case_results: list[dict] = []
     overall_tp = overall_fp = overall_fn = 0
@@ -210,6 +254,7 @@ def evaluate_declaration_manifest(path: Path) -> dict:
     for case in cases:
         observations = extract_declarations(case.ocr_blocks)
 
+        is_labeled = case.expected_declarations is not None
         expected_map = {
             _canonical_value(
                 item.declaration_type,
@@ -218,7 +263,7 @@ def evaluate_declaration_manifest(path: Path) -> dict:
                 "declaration_type": item.declaration_type.value,
                 "normalized_value": item.normalized_value,
             }
-            for item in case.expected_declarations
+            for item in (case.expected_declarations or [])
         }
         predicted_map = {
             _canonical_value(
@@ -238,34 +283,50 @@ def evaluate_declaration_manifest(path: Path) -> dict:
 
         expected_keys = set(expected_map)
         predicted_keys = set(predicted_map)
-        tp_keys = expected_keys & predicted_keys
-        fp_keys = predicted_keys - expected_keys
-        fn_keys = expected_keys - predicted_keys
+        tp_keys = expected_keys & predicted_keys if is_labeled else set()
+        fp_keys = predicted_keys - expected_keys if is_labeled else set()
+        fn_keys = expected_keys - predicted_keys if is_labeled else set()
 
-        overall_tp += len(tp_keys)
-        overall_fp += len(fp_keys)
-        overall_fn += len(fn_keys)
+        if is_labeled:
+            overall_tp += len(tp_keys)
+            overall_fp += len(fp_keys)
+            overall_fn += len(fn_keys)
 
-        for declaration_type in SUPPORTED_DECLARATION_TYPES:
-            prefix = declaration_type.value + ":"
-            expected_type = {key for key in expected_keys if key.startswith(prefix)}
-            predicted_type = {key for key in predicted_keys if key.startswith(prefix)}
-            counts = type_counts[declaration_type]
-            counts["tp"] += len(expected_type & predicted_type)
-            counts["fp"] += len(predicted_type - expected_type)
-            counts["fn"] += len(expected_type - predicted_type)
+            for declaration_type in SUPPORTED_DECLARATION_TYPES:
+                prefix = declaration_type.value + ":"
+                expected_type = {
+                    key for key in expected_keys if key.startswith(prefix)
+                }
+                predicted_type = {
+                    key for key in predicted_keys if key.startswith(prefix)
+                }
+                counts = type_counts[declaration_type]
+                counts["tp"] += len(expected_type & predicted_type)
+                counts["fp"] += len(predicted_type - expected_type)
+                counts["fn"] += len(expected_type - predicted_type)
 
         case_results.append(
             {
                 "case_id": case.case_id,
                 "dataset_type": case.dataset_type,
                 "block_source": case.block_source,
+                "source_page_url": case.source_page_url,
+                "source_domain": case.source_domain,
                 "notes": case.notes,
-                "exact_match": expected_keys == predicted_keys,
-                "expected": [
-                    expected_map[key]
-                    for key in sorted(expected_map)
-                ],
+                "labeled": is_labeled,
+                "exact_match": (
+                    expected_keys == predicted_keys
+                    if is_labeled
+                    else None
+                ),
+                "expected": (
+                    [
+                        expected_map[key]
+                        for key in sorted(expected_map)
+                    ]
+                    if is_labeled
+                    else None
+                ),
                 "predicted": [
                     predicted_map[key]
                     for key in sorted(predicted_map)
@@ -300,11 +361,22 @@ def evaluate_declaration_manifest(path: Path) -> dict:
         for source in sorted(_ALLOWED_BLOCK_SOURCES)
     }
 
+    labeled_cases = [case for case in case_results if case["labeled"]]
+    unlabeled_cases = [case for case in case_results if not case["labeled"]]
     real_actual = [
         case
-        for case in case_results
+        for case in labeled_cases
         if case["dataset_type"] == "real_package"
         and case["block_source"] == "actual_ocr"
+    ]
+    web_reference_actual = [
+        case
+        for case in case_results
+        if case["dataset_type"] == "web_reference"
+        and case["block_source"] == "actual_ocr"
+    ]
+    labeled_web_reference_actual = [
+        case for case in web_reference_actual if case["labeled"]
     ]
     real_exact_count = sum(1 for case in real_actual if case["exact_match"])
     real_tp = sum(len(case["true_positives"]) for case in real_actual)
@@ -316,11 +388,29 @@ def evaluate_declaration_manifest(path: Path) -> dict:
         warnings.append("no_real_package_actual_ocr_cases")
 
     return {
-        "manifest": str(path.expanduser().resolve()),
+        "manifest": resolved_manifest.name,
+        "manifest_sha256": manifest_sha256,
+        "input_provenance_version": "declaration-input-sha256-v1",
         "extractor_version": DECLARATION_EXTRACTOR_VERSION,
         "case_count": len(case_results),
+        "labeled_case_count": len(labeled_cases),
+        "unlabeled_case_count": len(unlabeled_cases),
         "dataset_counts": dataset_counts,
         "block_source_counts": block_source_counts,
+        "web_reference_actual_ocr_case_count": len(web_reference_actual),
+        "web_reference_actual_ocr_labeled_count": len(
+            labeled_web_reference_actual
+        ),
+        "web_reference_actual_ocr_predicted_declaration_count": sum(
+            len(case["predicted"]) for case in web_reference_actual
+        ),
+        "web_reference_source_domains": sorted(
+            {
+                case["source_domain"]
+                for case in web_reference_actual
+                if case["source_domain"] is not None
+            }
+        ),
         "real_package_actual_ocr_case_count": len(real_actual),
         "real_package_actual_ocr_exact_match_count": real_exact_count,
         "real_package_actual_ocr_exact_match_rate": (
