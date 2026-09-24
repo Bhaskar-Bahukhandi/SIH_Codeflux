@@ -71,6 +71,10 @@ jobs:
           print("paddleocr", paddleocr.__version__)
           PY
 
+      - name: Capture container logs
+        if: always()
+        run: docker logs codeflux-demo > /tmp/codeflux-container.log 2>&1 || true
+
       - name: Upload container logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,10 +83,6 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: /tmp/codeflux-container.log
-
-      - name: Capture container logs
-        if: always()
-        run: docker logs codeflux-demo > /tmp/codeflux-container.log 2>&1 || true
 
       - name: Stop container
         if: always()
