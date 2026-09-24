@@ -265,7 +265,7 @@ def test_capture_exact_replay_remains_safe_after_submission(
         client_capture_id=str(uuid4()),
     )
     assert new_capture.status_code == 409
-    assert new_capture.json()["error"]["code"] == "inspection_not_draft"
+    assert new_capture.json()["error"]["code"] == "inspection_not_editable"
 
 def test_capture_replay_does_not_claim_success_when_remote_evidence_is_missing(
     client,
