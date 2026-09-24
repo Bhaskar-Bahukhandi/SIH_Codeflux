@@ -51,6 +51,7 @@ class PaddleOcrEngine:
         device: str,
         min_confidence: float,
         enable_mkldnn: bool,
+        detection_max_dimension: int,
     ):
         try:
             from paddleocr import PaddleOCR
@@ -84,10 +85,13 @@ class PaddleOcrEngine:
         self.model_version = model_version
         self.language = language
         self._min_confidence = min_confidence
+        self._detection_max_dimension = detection_max_dimension
         self.parameters = {
             "engine": engine,
             "device": device,
             "text_rec_score_thresh": min_confidence,
+            "text_det_limit_side_len": detection_max_dimension,
+            "text_det_limit_type": "max",
             "enable_mkldnn": enable_mkldnn,
             "document_orientation": False,
             "document_unwarping": False,
@@ -103,6 +107,8 @@ class PaddleOcrEngine:
                 self._model.predict(
                     rgb,
                     text_rec_score_thresh=self._min_confidence,
+                    text_det_limit_side_len=self._detection_max_dimension,
+                    text_det_limit_type="max",
                 )
             )
         except Exception as exc:
@@ -177,6 +183,7 @@ def _cached_paddle_engine(
     device: str,
     min_confidence: float,
     enable_mkldnn: bool,
+    detection_max_dimension: int,
 ) -> PaddleOcrEngine:
     return PaddleOcrEngine(
         engine=engine,
@@ -185,6 +192,7 @@ def _cached_paddle_engine(
         device=device,
         min_confidence=min_confidence,
         enable_mkldnn=enable_mkldnn,
+        detection_max_dimension=detection_max_dimension,
     )
 
 
@@ -196,6 +204,7 @@ def build_ocr_engine(settings: Settings) -> OcrEngine:
         settings.ocr_device,
         settings.ocr_min_confidence,
         settings.ocr_enable_mkldnn,
+        settings.ocr_detection_max_dimension,
     )
 
 
