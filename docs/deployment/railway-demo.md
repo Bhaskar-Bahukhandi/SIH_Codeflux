@@ -2,7 +2,7 @@
 
 Issue: #43
 
-Status: repository deployment contract validated; live Railway provisioning pending
+Status: live Railway app/Postgres/public-HTTPS deployment validated; authenticated persistence workflow pending
 
 ## Decision
 
@@ -148,3 +148,35 @@ The deployment work must remain reversible:
 - no Railway-specific SDK is introduced into application code;
 - removing `DASHBOARD_ROOT` returns FastAPI to API-only behavior;
 - the platform can be changed later without changing Legal Metrology semantics.
+
+
+## Live Railway deployment evidence
+
+The initial SIH demo environment is now provisioned in Railway:
+
+- project: `CODEFLUX SIH Demo`;
+- app service: `codeflux-demo`;
+- PostgreSQL service: private `Postgres`;
+- persistent media volume: `codeflux-data` mounted at `/data`;
+- public HTTPS domain: `https://codeflux-demo-production.up.railway.app`;
+- app replicas: 1.
+
+The deployed app runs the validated `main` image with:
+
+- Alembic migrations against Railway PostgreSQL;
+- `PORT=8000` aligned with the generated Railway domain;
+- `MEDIA_ROOT=/data/media`;
+- PaddleOCR 3.7.0 + PaddlePaddle 3.2.2;
+- `OCR_DETECTION_MAX_DIMENSION=960`;
+- MKLDNN disabled for the validated CPU path.
+
+Railway deployment logs show PostgreSQL migrations, application startup and a 200 response to the Railway readiness probe. A separate GitHub-hosted public smoke test then verified from outside Railway:
+
+- public HTTPS routing succeeds;
+- `GET /health` returns `{"status":"ok"}`;
+- `GET /health/ready` returns `{"status":"ready"}`;
+- the real same-origin CODEFLUX dashboard loads from `/`.
+
+This closes provider selection, live app/Postgres provisioning, private database networking and public HTTPS reachability.
+
+Still unverified: an authenticated live inspection plus evidence-file/database persistence across an intentional Railway redeploy/restart. That remains a separate evidence gate.

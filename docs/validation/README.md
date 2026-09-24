@@ -132,7 +132,14 @@ Railway Hobby is the selected initial SIH demo target. The checked-in combined D
 - preserves `/health` and `/health/ready`;
 - passed the dedicated container smoke workflow.
 
-Railway account/service provisioning is still **EXTERNAL EVIDENCE REQUIRED**. The live deployment must still prove Railway Postgres connectivity, the persistent `/data` evidence volume, public HTTPS access and retained evidence after a service restart/redeploy.
+Live Railway provisioning is now partially evidenced:
+
+- app service deployment: **PASS**;
+- private Railway PostgreSQL connectivity through application readiness: **PASS**;
+- `/data` persistent volume attachment: **PASS**;
+- public Railway HTTPS routing: **PASS**;
+- public `/health`, `/health/ready` and same-origin dashboard: **PASS**;
+- authenticated inspection/evidence persistence after intentional service restart/redeploy: **EXTERNAL EVIDENCE REQUIRED**.
 
 ### Current unresolved evidence gates
 
@@ -143,7 +150,7 @@ After the repository-controlled validation work, the remaining non-deferred evid
 - reviewed real-package declaration labels for extraction precision/recall;
 - a physical handset run of offline -> restart -> reconnect -> replay;
 - a physical handset run of the optional ML Kit adapter to measure actual recognition/runtime behavior;
-- a live Railway deployment with Postgres, persistent media volume, HTTPS and restart/redeploy persistence verification.
+- an authenticated live Railway inspection proving database + evidence-file persistence across an intentional restart/redeploy.
 
 None of these may be reported as PASS based only on synthetic, web-reference, emulator, container or mocked evidence.
 
