@@ -1,5 +1,5 @@
 param(
-    [string]$Organization = "in.sih.codeflux"
+    [string]$Organization = "org.sih.codeflux"
 )
 
 $ErrorActionPreference = "Stop"
