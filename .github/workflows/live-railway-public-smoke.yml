@@ -1,0 +1,94 @@
+name: Live Railway Public Smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/live-railway-public-smoke.yml"
+      - "docs/deployment/railway-demo.md"
+
+permissions:
+  contents: read
+
+jobs:
+  public-https-smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      CODEFLUX_LIVE_URL: https://codeflux-demo-production.up.railway.app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for public HTTPS readiness
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              --max-time 15 \
+              "$CODEFLUX_LIVE_URL/health/ready" \
+              -o /tmp/ready.json; then
+              cat /tmp/ready.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Public Railway readiness endpoint did not become reachable."
+          exit 1
+
+      - name: Verify public liveness
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --max-time 15 \
+            "$CODEFLUX_LIVE_URL/health" \
+            -o /tmp/health.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/health.json").read_text())
+          if payload != {"status": "ok"}:
+              raise SystemExit(f"Unexpected liveness payload: {payload}")
+          PY
+
+      - name: Verify public database readiness
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/ready.json").read_text())
+          if payload != {"status": "ready"}:
+              raise SystemExit(f"Unexpected readiness payload: {payload}")
+          PY
+
+      - name: Verify same-origin dashboard
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --max-time 20 \
+            "$CODEFLUX_LIVE_URL/" \
+            -o /tmp/dashboard.html
+          grep -qi "CODEFLUX" /tmp/dashboard.html
+
+      - name: Record HTTP response headers
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --head \
+            --max-time 15 \
+            "$CODEFLUX_LIVE_URL/" \
+            | tee /tmp/railway-public-headers.txt
+
+      - name: Upload public smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-railway-public-smoke
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            /tmp/health.json
+            /tmp/ready.json
+            /tmp/railway-public-headers.txt
