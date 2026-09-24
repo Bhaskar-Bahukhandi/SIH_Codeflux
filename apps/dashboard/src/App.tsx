@@ -101,6 +101,20 @@ export default function App() {
     });
   }, [inspections, query, statusFilter]);
 
+  const statusSummary = useMemo(
+    () => ({
+      total: inspections.length,
+      draft: inspections.filter((inspection) => inspection.status === "draft").length,
+      pendingReview: inspections.filter(
+        (inspection) => inspection.status === "pending_review",
+      ).length,
+      finalized: inspections.filter(
+        (inspection) => inspection.status === "finalized",
+      ).length,
+    }),
+    [inspections],
+  );
+
   function handleAuthenticated(nextSession: DashboardSession) {
     saveSession(nextSession);
     setSession(nextSession);
@@ -125,6 +139,9 @@ export default function App() {
 
   return (
     <main className="shell">
+      <a className="skip-link" href="#dashboard-content">
+        Skip to dashboard content
+      </a>
       <header className="topbar">
         <div>
           <p className="eyebrow">SIH 2026 · SIH26034</p>
@@ -142,6 +159,7 @@ export default function App() {
         </div>
       </header>
 
+      <div id="dashboard-content">
       {selectedInspectionId ? (
         <InspectionDetail
           inspectionId={selectedInspectionId}
@@ -162,6 +180,15 @@ export default function App() {
               </p>
             )}
           </div>
+
+          {loadState === "ready" && (
+            <dl className="status-summary" aria-label="Operational inspection status summary">
+              <div><dt>Total</dt><dd>{statusSummary.total}</dd></div>
+              <div><dt>Draft</dt><dd>{statusSummary.draft}</dd></div>
+              <div><dt>Pending review</dt><dd>{statusSummary.pendingReview}</dd></div>
+              <div><dt>Finalized</dt><dd>{statusSummary.finalized}</dd></div>
+            </dl>
+          )}
 
           <div className="filters" aria-label="Inspection filters">
             <label>
@@ -262,6 +289,7 @@ export default function App() {
           )}
         </section>
       )}
+      </div>
 
       <footer>
         Dashboard records come from persisted CODEFLUX API data. Legal evaluation semantics remain on the backend.
