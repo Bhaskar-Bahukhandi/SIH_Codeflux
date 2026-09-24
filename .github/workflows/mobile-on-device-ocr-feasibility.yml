@@ -1,0 +1,80 @@
+name: Mobile On-Device OCR Feasibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "scripts/bootstrap_mobile_platforms.ps1"
+      - "docs/validation/mobile-on-device-ocr.md"
+      - ".github/workflows/mobile-on-device-ocr-feasibility.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-contract:
+    name: Flutter dependency and adapter contract
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run mobile tests
+        run: timeout --signal=TERM 15m flutter test --reporter expanded
+
+  android-native-build:
+    name: Android native ML Kit build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Set up Java 17 for Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate ephemeral Android runner
+        run: |
+          cp pubspec.yaml /tmp/codeflux-pubspec.yaml
+          cp lib/main.dart /tmp/codeflux-main.dart
+          flutter create --platforms=android --org org.sih.codeflux .
+          cp /tmp/codeflux-pubspec.yaml pubspec.yaml
+          cp /tmp/codeflux-main.dart lib/main.dart
+
+      - name: Resolve dependencies with ML Kit
+        run: flutter pub get
+
+      - name: Build debug APK with native ML Kit dependency
+        run: |
+          flutter build apk --debug \
+            --dart-define=CODEFLUX_API_URL=http://127.0.0.1:8000/
+
+      - name: Verify APK artifact exists
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk

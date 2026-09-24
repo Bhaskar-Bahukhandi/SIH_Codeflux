@@ -80,12 +80,26 @@ The validation also exposed and fixed a lifecycle replay bug: an exact capture r
 
 This proves the repository's Flutter HTTP adapter can synchronize against the real FastAPI implementation in CI. It is not physical-device evidence.
 
+### Mobile/on-device OCR feasibility
+
+**PASS** for repository compatibility and Android native build feasibility.
+
+The bounded ML Kit spike demonstrates:
+
+- `google_mlkit_text_recognition` 0.17.1 resolves on the Flutter 3.47.5 toolchain;
+- the isolated adapter passes analyzer and mobile regression tests;
+- the server PP-OCRv5 path remains unchanged and authoritative;
+- an ephemeral native Android project builds a debug APK successfully with the ML Kit plugin linked;
+- the guarded platform bootstrap now uses a Kotlin-safe `org.sih.codeflux` organization and iOS 15.5 minimum.
+
+This does **not** prove on-device recognition output, latency, memory/battery impact or real offline model behavior. Those require a physical Android/iOS device.
+
 ### Still external/runtime-dependent
 
 These remain **EXTERNAL EVIDENCE REQUIRED**:
 
 - physical-device offline -> restart -> reconnect -> replay validation;
-- mobile OCR/on-device adapter feasibility spike;
+- mobile OCR/on-device physical-runtime validation;
 - calibrated physical font-size measurement validation.
 
 The hosting/deployment provider also remains a recorded open decision.
