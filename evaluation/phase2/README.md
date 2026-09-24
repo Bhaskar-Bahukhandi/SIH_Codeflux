@@ -8,6 +8,8 @@ The automated tests prove deterministic code behavior on synthetic fixtures. The
 
 A real-package dataset must therefore be evaluated separately before the team makes field-performance claims.
 
+Before collecting/labeling images, follow [COLLECTION_PROTOCOL.md](./COLLECTION_PROTOCOL.md). Human expected labels should be assigned before inspecting CODEFLUX predictions to reduce confirmation bias.
+
 ## Local dataset layout
 
 Keep real images outside Git:
@@ -58,6 +60,9 @@ python -m app.cli.validate_phase2 \
 
 The report records:
 
+- manifest filename and SHA-256;
+- manifest-relative image paths and per-image SHA-256 digests;
+- an input-provenance schema version;
 - algorithm versions;
 - exact threshold snapshots;
 - real/synthetic/other case counts;
@@ -88,3 +93,4 @@ Those numbers are an **example invocation**, not a hard-coded project requiremen
 - Unlabeled real images show observed metrics/states but cannot support an accuracy/agreement claim.
 - The harness reports status agreement, not calibrated model accuracy.
 - Threshold tuning must be documented; material behavior changes require a new algorithm version.
+- SHA-256 provenance identifies the exact manifest and image bytes used by a report; it does not replace human review of dataset suitability.

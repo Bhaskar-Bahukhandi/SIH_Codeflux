@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -179,7 +181,9 @@ def evaluate_phase2_manifest(
     *,
     settings: Settings,
 ) -> dict:
-    rows = load_phase2_manifest(manifest_path)
+    resolved_manifest = manifest_path.expanduser().resolve()
+    rows = load_phase2_manifest(resolved_manifest)
+    manifest_sha256 = hashlib.sha256(resolved_manifest.read_bytes()).hexdigest()
     quality_thresholds = quality_thresholds_from_settings(settings)
     geometry_thresholds = geometry_thresholds_from_settings(settings)
 
@@ -191,6 +195,10 @@ def evaluate_phase2_manifest(
             )
 
         original = row.image_path.read_bytes()
+        image_sha256 = hashlib.sha256(original).hexdigest()
+        relative_image_path = Path(
+            os.path.relpath(row.image_path, start=resolved_manifest.parent)
+        ).as_posix()
         normalized = normalize_capture(original)
         quality = assess_quality(
             normalized.data,
@@ -204,7 +212,8 @@ def evaluate_phase2_manifest(
         cases.append(
             {
                 "case_id": row.case_id,
-                "image_path": str(row.image_path),
+                "image_path": relative_image_path,
+                "image_sha256": image_sha256,
                 "dataset_type": row.dataset_type,
                 "notes": row.notes,
                 "expected_quality_status": row.expected_quality_status,
@@ -275,7 +284,9 @@ def evaluate_phase2_manifest(
     )
 
     return {
-        "manifest": str(manifest_path.expanduser().resolve()),
+        "manifest": resolved_manifest.name,
+        "manifest_sha256": manifest_sha256,
+        "input_provenance_version": "phase2-input-sha256-v1",
         "case_count": len(cases),
         "dataset_counts": dataset_counts,
         "real_package_labeled_quality_count": sum(

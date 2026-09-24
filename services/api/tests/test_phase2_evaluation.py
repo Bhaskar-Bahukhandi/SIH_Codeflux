@@ -1,4 +1,5 @@
 import csv
+import hashlib
 from io import BytesIO
 from pathlib import Path
 
@@ -73,6 +74,12 @@ def test_evaluation_keeps_real_and_synthetic_evidence_separate(tmp_path):
     )
 
     assert report["case_count"] == 2
+    assert report["manifest"] == "manifest.csv"
+    assert report["manifest_sha256"] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+    assert report["input_provenance_version"] == "phase2-input-sha256-v1"
+    assert report["cases"][0]["image_path"] == "real.jpg"
+    assert report["cases"][0]["image_sha256"] == hashlib.sha256(real_image.read_bytes()).hexdigest()
+    assert str(tmp_path) not in report["cases"][0]["image_path"]
     assert report["dataset_counts"] == {
         "other": 0,
         "real_package": 1,
