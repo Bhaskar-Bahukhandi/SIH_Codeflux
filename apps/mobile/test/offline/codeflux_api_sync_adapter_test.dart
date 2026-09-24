@@ -1004,4 +1004,91 @@ void main() {
     );
   });
 
+
+  test("capture discard execution and reconciliation verify removal", () async {
+    var discardedAt = "2026-09-24T11:00:00Z";
+    final client = MockClient((request) async {
+      expect(
+        request.url.path,
+        "/api/v1/inspections/" +
+            inspectionId +
+            "/captures/" +
+            captureId +
+            (request.method == "POST" ? "/discard" : ""),
+      );
+
+      if (request.method == "POST") {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            "id": captureId,
+            "inspection_id": inspectionId,
+            "discarded_at": discardedAt,
+          }),
+          200,
+        );
+      }
+
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": captureId,
+          "inspection_id": inspectionId,
+          "discarded_at": discardedAt.isEmpty ? null : discardedAt,
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-discard-capture",
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardCapture,
+      resourceId: captureId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      captureId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    discardedAt = "";
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+  });
+
+  test("missing capture satisfies discard reconciliation goal", () async {
+    final client = MockClient((request) async => http.Response("{}", 404));
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-discard-missing-capture",
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardCapture,
+      resourceId: captureId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+      },
+    );
+
+    final result = await adapter.reconcile(operation);
+    expect(result.status, ReconciliationStatus.applied);
+    expect(result.remoteResourceId, captureId);
+  });
+
 }
