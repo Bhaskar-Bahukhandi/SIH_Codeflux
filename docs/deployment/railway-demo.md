@@ -167,6 +167,8 @@ The deployed app runs the validated `main` image with:
 - `PORT=8000` aligned with the generated Railway domain;
 - `MEDIA_ROOT=/data/media`;
 - PaddleOCR 3.7.0 + PaddlePaddle 3.2.2;
+- `OCR_DETECTION_MODEL_NAME=PP-OCRv5_mobile_det`
+- `OCR_INPUT_MAX_DIMENSION=1600`
 - `OCR_DETECTION_MAX_DIMENSION=960`;
 - MKLDNN disabled for the validated CPU path.
 
