@@ -58,6 +58,22 @@ def test_officer_can_discard_owned_draft_and_it_disappears_from_list(
         "to_status": "discarded",
     }
 
+    replay = client.post(
+        f"/api/v1/inspections/{created['id']}/discard",
+        headers=headers,
+    )
+    assert replay.status_code == 200
+    assert replay.json()["status"] == "discarded"
+
+    replay_events = list(
+        db_session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.inspection_id == created["id"])
+            .order_by(AuditEvent.created_at.asc())
+        ).all()
+    )
+    assert len(replay_events) == len(events)
+
 
 def test_discarded_inspection_cannot_be_edited_or_submitted(
     client,
