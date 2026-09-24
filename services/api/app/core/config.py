@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     ocr_inference_engine: Literal["paddle", "transformers"] = "paddle"
     ocr_language: str = "en"
     ocr_model_version: str = "PP-OCRv5"
+    ocr_detection_model_name: str = "PP-OCRv5_mobile_det"
     ocr_device: str = "cpu"
     ocr_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     ocr_input_max_dimension: int = Field(default=1600, ge=640, le=4000)
@@ -123,6 +124,8 @@ def validate_runtime_settings(settings: Settings) -> None:
         raise RuntimeError("OCR_LANGUAGE must not be blank.")
     if not settings.ocr_model_version.strip():
         raise RuntimeError("OCR_MODEL_VERSION must not be blank.")
+    if not settings.ocr_detection_model_name.strip():
+        raise RuntimeError("OCR_DETECTION_MODEL_NAME must not be blank.")
     if not settings.ocr_device.strip():
         raise RuntimeError("OCR_DEVICE must not be blank.")
 
