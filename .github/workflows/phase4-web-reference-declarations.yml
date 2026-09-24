@@ -26,6 +26,7 @@ jobs:
       OCR_INFERENCE_ENGINE: paddle
       OCR_LANGUAGE: en
       OCR_MODEL_VERSION: PP-OCRv5
+      OCR_DETECTION_MODEL_NAME: PP-OCRv5_mobile_det
       OCR_DEVICE: cpu
       OCR_MIN_CONFIDENCE: "0.0"
       OCR_ENABLE_MKLDNN: "false"
