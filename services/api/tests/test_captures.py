@@ -236,3 +236,95 @@ def test_capture_upload_is_blocked_after_submission(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "inspection_not_editable"
+
+
+def test_owner_can_discard_draft_capture_without_deleting_audit_record(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    upload = upload_image(
+        client,
+        inspection["id"],
+        headers,
+        image_bytes(),
+    )
+    assert upload.status_code == 201
+    capture_id = upload.json()["id"]
+
+    discarded = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=headers,
+    )
+    assert discarded.status_code == 200
+    assert discarded.json()["id"] == capture_id
+    assert discarded.json()["discarded_at"] is not None
+
+    repeated = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=headers,
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["discarded_at"] == discarded.json()["discarded_at"]
+
+    listing = client.get(
+        f"/api/v1/inspections/{inspection['id']}/captures",
+        headers=headers,
+    )
+    assert listing.status_code == 200
+    assert listing.json() == []
+
+    content = client.get(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/content",
+        headers=headers,
+    )
+    assert content.status_code == 404
+
+    stored = db_session.get(Capture, capture_id)
+    assert stored is not None
+    assert stored.discarded_at is not None
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type == AuditEventType.CAPTURE_DISCARDED.value,
+            )
+        ).all()
+    )
+    assert len(events) == 1
+    assert events[0].details["capture_id"] == capture_id
+
+
+def test_capture_discard_is_blocked_after_submission(
+    client,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    upload = upload_image(
+        client,
+        inspection["id"],
+        headers,
+        image_bytes(),
+    )
+    capture_id = upload.json()["id"]
+
+    submitted = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=headers,
+    )
+    assert submitted.status_code == 200
+
+    response = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "inspection_not_editable"
