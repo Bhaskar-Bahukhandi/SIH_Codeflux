@@ -64,7 +64,7 @@ jobs:
 
       - name: Verify pinned OCR runtime is present
         run: |
-          docker exec codeflux-demo python - <<'PY'
+          docker exec -i codeflux-demo python - <<'PY'
           import paddle
           import paddleocr
 
@@ -78,7 +78,7 @@ jobs:
         run: |
           test "$(docker inspect --format '{{.HostConfig.Memory}}' codeflux-demo)" -eq 1073741824
 
-          docker exec codeflux-demo python - <<'PY'
+          docker exec -i codeflux-demo python - <<'PY'
           from io import BytesIO
 
           from PIL import Image, ImageDraw
