@@ -18,6 +18,7 @@ class InspectionStatus(str, Enum):
     DRAFT = "draft"
     PENDING_REVIEW = "pending_review"
     FINALIZED = "finalized"
+    DISCARDED = "discarded"
 
 
 class Inspection(Base):
