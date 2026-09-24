@@ -454,32 +454,22 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           "${record.sizeBytes} bytes · "
                           "${_stateLabel(record.syncState)}",
                         ),
-                        trailing: PopupMenuButton<String>(
-                          tooltip: "Image actions",
-                          enabled: !_busy,
-                          onSelected: (action) {
-                            if (action == "replace") {
-                              _replaceEvidence(record);
-                            } else if (action == "remove") {
-                              _removeEvidence(record);
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(
-                              value: "replace",
-                              child: ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: Icon(Icons.cameraswitch_outlined),
-                                title: Text("Replace image"),
-                              ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: "Replace image",
+                              onPressed: _busy
+                                  ? null
+                                  : () => _replaceEvidence(record),
+                              icon: const Icon(Icons.cameraswitch_outlined),
                             ),
-                            PopupMenuItem(
-                              value: "remove",
-                              child: ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: Icon(Icons.delete_outline),
-                                title: Text("Remove image"),
-                              ),
+                            IconButton(
+                              tooltip: "Remove image",
+                              onPressed: _busy
+                                  ? null
+                                  : () => _removeEvidence(record),
+                              icon: const Icon(Icons.delete_outline),
                             ),
                           ],
                         ),
