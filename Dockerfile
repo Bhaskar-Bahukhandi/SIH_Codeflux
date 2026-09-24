@@ -34,6 +34,7 @@ RUN apt-get update \
 
 WORKDIR /app/services/api
 COPY services/api/ ./
+COPY packages/rulepacks/ /app/packages/rulepacks/
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir ".[ocr]"
 
