@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: apps/dashboard/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Run tests
         run: npm test
