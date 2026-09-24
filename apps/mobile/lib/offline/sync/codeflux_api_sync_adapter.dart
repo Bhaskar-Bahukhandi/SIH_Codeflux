@@ -30,6 +30,10 @@ class CodefluxApiSyncAdapter
     return switch (operation.type) {
       SyncOperationType.createInspection =>
         _executeCreateInspection(operation),
+      SyncOperationType.updateInspection =>
+        _executeUpdateInspection(operation),
+      SyncOperationType.discardInspection =>
+        _executeDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _executeUploadCapture(operation),
       SyncOperationType.processCapture =>
@@ -61,6 +65,10 @@ class CodefluxApiSyncAdapter
     return switch (operation.type) {
       SyncOperationType.createInspection =>
         _reconcileInspection(operation),
+      SyncOperationType.updateInspection =>
+        _reconcileUpdateInspection(operation),
+      SyncOperationType.discardInspection =>
+        _reconcileDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _reconcileCapture(operation),
       SyncOperationType.processCapture =>
@@ -127,6 +135,82 @@ class CodefluxApiSyncAdapter
     }
 
     return SyncExecutionSuccess(remoteResourceId: remoteId);
+  }
+
+  Future<SyncExecutionSuccess> _executeUpdateInspection(
+    SyncOperation operation,
+  ) async {
+    final payload = operation.payload;
+    final productName = _requiredString(payload, "product_name");
+    final productIdentifier = payload["product_identifier"];
+
+    final request = http.Request(
+      "PATCH",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId),
+      ),
+    )
+      ..headers.addAll(await _headers(json: true))
+      ..body = jsonEncode(<String, Object?>{
+        "product_name": productName,
+        "product_identifier": productIdentifier,
+      });
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection update",
+    );
+    if (decoded["id"]?.toString() != operation.inspectionId ||
+        decoded["product_name"] != productName ||
+        decoded["product_identifier"] != productIdentifier ||
+        decoded["status"]?.toString() != "draft") {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server inspection update response does not match the queued details.",
+      );
+    }
+
+    return SyncExecutionSuccess(
+      remoteResourceId: operation.inspectionId,
+    );
+  }
+
+  Future<SyncExecutionSuccess> _executeDiscardInspection(
+    SyncOperation operation,
+  ) async {
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/discard",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection discard",
+    );
+    if (decoded["id"]?.toString() != operation.inspectionId ||
+        decoded["status"]?.toString() != "discarded") {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server inspection discard response does not confirm discard.",
+      );
+    }
+
+    return SyncExecutionSuccess(
+      remoteResourceId: operation.inspectionId,
+    );
   }
 
   Future<SyncExecutionSuccess> _executeUploadCapture(
@@ -618,6 +702,75 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(
       remoteResourceId: operation.resourceId,
     );
+  }
+
+  Future<ReconciliationResult> _reconcileUpdateInspection(
+    SyncOperation operation,
+  ) async {
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection update",
+    );
+    if (remote["id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    final expectedName = _requiredString(
+      operation.payload,
+      "product_name",
+    );
+    final expectedIdentifier = operation.payload["product_identifier"];
+    if (remote["product_name"] == expectedName &&
+        remote["product_identifier"] == expectedIdentifier) {
+      return ReconciliationResult.applied(
+        remoteResourceId: operation.inspectionId,
+      );
+    }
+
+    return remote["status"]?.toString() == "draft"
+        ? const ReconciliationResult.notApplied()
+        : const ReconciliationResult.unresolved();
+  }
+
+  Future<ReconciliationResult> _reconcileDiscardInspection(
+    SyncOperation operation,
+  ) async {
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId),
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection discard",
+    );
+    if (remote["id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    final status = remote["status"]?.toString();
+    if (status == "discarded") {
+      return ReconciliationResult.applied(
+        remoteResourceId: operation.inspectionId,
+      );
+    }
+    if (status == "draft") {
+      return const ReconciliationResult.notApplied();
+    }
+    return const ReconciliationResult.unresolved();
   }
 
   Future<ReconciliationResult> _reconcileCapture(
