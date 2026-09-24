@@ -68,7 +68,7 @@ The server PP-OCRv5 pipeline remains the validated source for persisted OCR evid
 
 The existing guarded platform bootstrap is updated to iOS 15.5 because the candidate Flutter ML Kit wrapper does not support the previously documented iOS 13.0 floor.
 
-Android bootstrap keeps minSdk 24, which is above the candidate's minimum requirement.
+Android bootstrap keeps minSdk 24, which is above the candidate's minimum requirement. The bootstrap organization is `org.sih.codeflux`; the previous `in.sih.codeflux` value caused Flutter's Kotlin templates to escape `in` and Gradle rejected the resulting namespace before any native platform files had been committed.
 
 ## Exit classification
 
