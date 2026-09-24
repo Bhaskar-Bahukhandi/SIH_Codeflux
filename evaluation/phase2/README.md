@@ -31,9 +31,10 @@ The repository `.gitignore` excludes `evaluation/phase2/images/` and generated r
 | --- | --- | --- |
 | `case_id` | yes | Stable unique case identifier |
 | `image_path` | yes | Path relative to the manifest file |
-| `dataset_type` | yes | `real_package`, `synthetic`, or `other` |
+| `dataset_type` | yes | `real_package`, `web_reference`, `synthetic`, or `other` |
 | `expected_quality_status` | no | Human-reviewed expected quality outcome |
 | `expected_geometry_status` | no | Human-reviewed expected geometry outcome |
+| `source_page_url` | required for `web_reference` | Official/public page from which the reference image was obtained |
 | `notes` | yes (may be blank) | Context such as glare, blur, curved pack, difficult angle |
 
 Supported expected quality statuses:
@@ -47,6 +48,15 @@ Supported expected geometry statuses:
 - `not_detected`
 - `review_recommended`
 - `correction_available`
+
+## Dataset classes
+
+- `real_package`: a photograph captured from a physical package in a real camera/field-like setup.
+- `web_reference`: an image obtained from a public product/manufacturer page. Useful for packaging diversity and observation, but it does **not** count toward the real-package gate.
+- `synthetic`: generated or constructed regression fixture.
+- `other`: anything that does not fit the above categories.
+
+For `web_reference`, `source_page_url` is mandatory. The report derives and records the source domain, while the real-package counters remain separate.
 
 ## Run
 
@@ -65,9 +75,10 @@ The report records:
 - an input-provenance schema version;
 - algorithm versions;
 - exact threshold snapshots;
-- real/synthetic/other case counts;
+- real/web-reference/synthetic/other case counts;
 - per-image metrics and states;
 - status agreement only for cases that have expected labels;
+- separate web-reference agreement summaries and source-domain inventory;
 - mismatch case IDs;
 - warnings when real-package or labeled-real-package evidence is missing.
 
@@ -90,6 +101,7 @@ Those numbers are an **example invocation**, not a hard-coded project requiremen
 ## Honest interpretation
 
 - Synthetic cases are regression evidence only.
+- Web-reference cases are stronger than synthetic fixtures for packaging diversity, but they are not field-camera evidence and never satisfy the real-package count gate.
 - Unlabeled real images show observed metrics/states but cannot support an accuracy/agreement claim.
 - The harness reports status agreement, not calibrated model accuracy.
 - Threshold tuning must be documented; material behavior changes require a new algorithm version.

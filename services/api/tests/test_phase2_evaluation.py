@@ -31,6 +31,7 @@ def write_manifest(path: Path, rows: list[dict[str, str]]) -> None:
         "dataset_type",
         "expected_quality_status",
         "expected_geometry_status",
+        "source_page_url",
         "notes",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -84,6 +85,7 @@ def test_evaluation_keeps_real_and_synthetic_evidence_separate(tmp_path):
         "other": 0,
         "real_package": 1,
         "synthetic": 1,
+        "web_reference": 0,
     }
     assert report["real_package_labeled_quality_count"] == 1
     assert report["real_package_labeled_geometry_count"] == 1
@@ -201,3 +203,86 @@ def test_validation_gates_fail_without_required_real_evidence(tmp_path):
     assert "labeled_real_quality_count:0<1" in failures
     assert "labeled_real_geometry_count:0<1" in failures
     assert all(not item.startswith("status_mismatches:") for item in failures)
+
+
+def test_web_reference_requires_source_page_and_stays_out_of_real_gate(tmp_path):
+    image = tmp_path / "official-pack.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "web-1",
+                "image_path": image.name,
+                "dataset_type": "web_reference",
+                "expected_quality_status": "",
+                "expected_geometry_status": "",
+                "source_page_url": "https://example.com/products/official-pack",
+                "notes": "Official product-page reference image.",
+            }
+        ],
+    )
+
+    report = evaluate_phase2_manifest(
+        manifest,
+        settings=Settings(_env_file=None, app_env="test"),
+    )
+
+    assert report["dataset_counts"]["web_reference"] == 1
+    assert report["dataset_counts"]["real_package"] == 0
+    assert report["web_reference_count"] == 1
+    assert report["web_reference_source_domains"] == ["example.com"]
+    assert report["cases"][0]["source_page_url"] == (
+        "https://example.com/products/official-pack"
+    )
+    assert report["cases"][0]["source_domain"] == "example.com"
+
+    failures = phase2_gate_failures(report, require_real_package=1)
+    assert "real_package_count:0<1" in failures
+
+
+def test_web_reference_without_source_page_is_rejected(tmp_path):
+    image = tmp_path / "official-pack.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "web-1",
+                "image_path": image.name,
+                "dataset_type": "web_reference",
+                "expected_quality_status": "",
+                "expected_geometry_status": "",
+                "source_page_url": "",
+                "notes": "",
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="source_page_url is required"):
+        load_phase2_manifest(manifest)
+
+
+def test_invalid_source_page_url_is_rejected(tmp_path):
+    image = tmp_path / "official-pack.jpg"
+    blank_jpeg(image)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(
+        manifest,
+        [
+            {
+                "case_id": "web-1",
+                "image_path": image.name,
+                "dataset_type": "web_reference",
+                "expected_quality_status": "",
+                "expected_geometry_status": "",
+                "source_page_url": "not-a-url",
+                "notes": "",
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match=r"absolute http\(s\) URL"):
+        load_phase2_manifest(manifest)
