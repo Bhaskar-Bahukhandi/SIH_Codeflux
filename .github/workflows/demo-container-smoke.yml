@@ -10,6 +10,7 @@ on:
       - "services/api/**"
       - "scripts/prefetch_ocr_models.py"
       - "docs/deployment/**"
+      - "docs/validation/README.md"
       - ".github/workflows/demo-container-smoke.yml"
 
 permissions:
