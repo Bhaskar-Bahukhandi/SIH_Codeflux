@@ -430,7 +430,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(frontOption);
     await pumpUntilFound(tester, find.text("Take photo"));
-    await tester.tap(find.widgetWithText(ListTile, "Take photo"));
+    final firstCameraOption = find.widgetWithText(ListTile, "Take photo");
+    await tester.ensureVisible(firstCameraOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(firstCameraOption);
     await pumpUntilFound(
       tester,
       find.textContaining("image saved locally and queued"),
@@ -454,7 +457,11 @@ void main() {
     await pumpUntilFound(tester, find.text("Replace image"));
     await tester.tap(find.text("Replace image"));
     await pumpUntilFound(tester, find.text("Take photo"));
-    await tester.tap(find.widgetWithText(ListTile, "Take photo"));
+    final replacementCameraOption =
+        find.widgetWithText(ListTile, "Take photo");
+    await tester.ensureVisible(replacementCameraOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(replacementCameraOption);
     await pumpUntilFound(
       tester,
       find.textContaining("image replaced successfully"),
