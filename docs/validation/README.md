@@ -80,12 +80,20 @@ The validation also exposed and fixed a lifecycle replay bug: an exact capture r
 
 This proves the repository's Flutter HTTP adapter can synchronize against the real FastAPI implementation in CI. It is not physical-device evidence.
 
+### Mobile OCR feasibility
+
+**PASS for the Android architecture feasibility decision; runtime implementation remains unverified.**
+
+ADR 0003 records the supported path exposed by current official PaddleOCR documentation: Flutter may bridge through a native Android adapter to the PaddleOCR Android SDK/AAR, which uses ONNX Runtime and supports PP-OCRv5 mobile detection/recognition models.
+
+The current SIH prototype keeps server-side PP-OCRv5 as the canonical validated path. No on-device OCR capability is claimed until the native adapter is implemented and executed on a physical ARM64 Android device.
+
 ### Still external/runtime-dependent
 
 These remain **EXTERNAL EVIDENCE REQUIRED**:
 
 - physical-device offline -> restart -> reconnect -> replay validation;
-- mobile OCR/on-device adapter feasibility spike;
+- physical Android on-device OCR execution/performance evidence;
 - calibrated physical font-size measurement validation.
 
 The hosting/deployment provider also remains a recorded open decision.
