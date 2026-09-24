@@ -47,7 +47,10 @@ def collect_current_ocr_sources(
     captures = list(
         db.scalars(
             select(Capture)
-            .where(Capture.inspection_id == inspection_id)
+            .where(
+                Capture.inspection_id == inspection_id,
+                Capture.discarded_at.is_(None),
+            )
             .order_by(Capture.created_at.asc(), Capture.id.asc())
         ).all()
     )
