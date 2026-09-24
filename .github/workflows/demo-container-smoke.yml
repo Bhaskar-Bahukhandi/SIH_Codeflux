@@ -109,6 +109,24 @@ jobs:
           curl --fail --silent http://127.0.0.1:18000/health/ready
           test "$(docker inspect --format '{{.State.OOMKilled}}' codeflux-demo)" = "false"
 
+      - name: Verify packaged rule pack
+        run: |
+          docker exec -i codeflux-demo python - <<'PY'
+          from app.services.rule_pack import load_rule_pack
+
+          loaded = load_rule_pack()
+          assert loaded.path.exists(), loaded.path
+          assert loaded.definition.rule_pack_id
+          assert loaded.definition.rules
+          print(
+              "rule_pack_loaded",
+              loaded.definition.rule_pack_id,
+              loaded.definition.version,
+              len(loaded.definition.rules),
+              loaded.sha256,
+          )
+          PY
+
       - name: Capture container logs
         if: always()
         run: docker logs codeflux-demo > /tmp/codeflux-container.log 2>&1 || true
