@@ -27,6 +27,45 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation updateInspection({
+    required String inspectionId,
+    required String productName,
+    String? productIdentifier,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.updateInspection,
+      resourceId: inspectionId,
+      payload: <String, Object?>{
+        "product_name": productName,
+        "product_identifier": productIdentifier,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
+  SyncOperation discardInspection({
+    required String inspectionId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{},
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation uploadCapture(
     LocalEvidenceRecord evidence, {
     required String createInspectionOperationId,
