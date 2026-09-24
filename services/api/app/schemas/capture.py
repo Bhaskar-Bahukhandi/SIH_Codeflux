@@ -16,6 +16,7 @@ class CaptureRead(BaseModel):
     size_bytes: int
     width_px: int
     height_px: int
+    discarded_at: datetime | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
