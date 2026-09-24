@@ -386,4 +386,87 @@ void main() {
     await unmountApp(tester);
   });
 
+
+  testWidgets("Officer replaces and removes package evidence before review", (
+    tester,
+  ) async {
+    final harness = (await tester.runAsync(FieldUiHarness.create))!;
+    addTearDown(() async {
+      await tester.runAsync(harness.dispose);
+    });
+
+    final created = (await tester.runAsync(
+      () => harness.workspace.createInspection(
+        productName: "Evidence Controls",
+      ),
+    ))!;
+    final inspectionId = created.inspection.id;
+
+    await tester.runAsync(
+      () => harness.workspace.addEvidence(
+        inspectionId: inspectionId,
+        viewType: "front",
+        bytes: base64Decode(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+          "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        ),
+        originalFilename: "old.png",
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InspectionScreen(
+          inspectionId: inspectionId,
+          workspace: harness.workspace,
+          captureCoordinator: harness.captureCoordinator,
+        ),
+      ),
+    );
+    await pumpUntilFound(tester, find.text("Front"));
+
+    harness.acquisition.next = AcquiredEvidence(
+      bytes: base64Decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+        "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ),
+      filename: "replacement.png",
+    );
+
+    await tester.tap(find.byTooltip("Image actions"));
+    await pumpUntilFound(tester, find.text("Replace image"));
+    await tester.tap(find.text("Replace image"));
+    await pumpUntilFound(tester, find.text("Take photo"));
+    await tester.tap(find.text("Take photo"));
+    await pumpUntilFound(tester, find.textContaining("image replaced"));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+
+    var active = (await tester.runAsync(
+      () => harness.workspace.listEvidence(inspectionId),
+    ))!;
+    expect(active.length, 1);
+
+    await tester.tap(find.byTooltip("Image actions"));
+    await pumpUntilFound(tester, find.text("Remove image"));
+    await tester.tap(find.text("Remove image"));
+    await pumpUntilFound(tester, find.text("Remove image?"));
+    await tester.tap(find.widgetWithText(FilledButton, "Remove"));
+    await pumpUntilFound(tester, find.textContaining("Image removed"));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+
+    active = (await tester.runAsync(
+      () => harness.workspace.listEvidence(inspectionId),
+    ))!;
+    expect(active, isEmpty);
+    expect(find.text("No package images saved yet."), findsNothing);
+    expect(
+      find.textContaining("No package images saved yet"),
+      findsOneWidget,
+    );
+
+    await unmountApp(tester);
+  });
+
 }
