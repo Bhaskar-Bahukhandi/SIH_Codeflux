@@ -26,6 +26,7 @@ jobs:
       OCR_MODEL_VERSION: PP-OCRv5
       OCR_DEVICE: cpu
       OCR_MIN_CONFIDENCE: "0.0"
+      OCR_DETECTION_MAX_DIMENSION: "960"
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
     steps:
       - name: Checkout

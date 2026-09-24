@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     ocr_model_version: str = "PP-OCRv5"
     ocr_device: str = "cpu"
     ocr_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    ocr_detection_max_dimension: int = Field(default=960, ge=320, le=4000)
     # Correctness-first default for current PaddlePaddle 3.3.x CPU runtimes:
     # PP-OCRv5 can hit an upstream oneDNN/PIR conversion regression.
     ocr_enable_mkldnn: bool = False

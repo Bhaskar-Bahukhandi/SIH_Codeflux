@@ -29,11 +29,22 @@ class FakeModel:
     def __init__(self, payload):
         self.payload = payload
         self.last_threshold = None
+        self.last_detection_limit = None
+        self.last_detection_limit_type = None
 
-    def predict(self, image, *, text_rec_score_thresh):
+    def predict(
+        self,
+        image,
+        *,
+        text_rec_score_thresh,
+        text_det_limit_side_len,
+        text_det_limit_type,
+    ):
         assert isinstance(image, np.ndarray)
         assert image.shape == (80, 120, 3)
         self.last_threshold = text_rec_score_thresh
+        self.last_detection_limit = text_det_limit_side_len
+        self.last_detection_limit_type = text_det_limit_type
         return [FakeResult(self.payload)]
 
 
@@ -41,6 +52,7 @@ def make_engine(payload, *, threshold=0.25):
     engine = object.__new__(PaddleOcrEngine)
     engine._model = FakeModel(payload)
     engine._min_confidence = threshold
+    engine._detection_max_dimension = 960
     return engine
 
 
@@ -63,6 +75,8 @@ def test_paddleocr_adapter_reads_documented_recognition_fields():
     detections = engine.extract(image_bytes())
 
     assert engine._model.last_threshold == 0.25
+    assert engine._model.last_detection_limit == 960
+    assert engine._model.last_detection_limit_type == "max"
     assert [item.text for item in detections] == [
         "MRP Rs. 50",
         "Net Qty 100 g",
@@ -123,9 +137,18 @@ def test_paddleocr_adapter_rejects_invalid_recognition_output(payload):
 
 
 class FailingPredictModel:
-    def predict(self, _image, *, text_rec_score_thresh):
+    def predict(
+        self,
+        _image,
+        *,
+        text_rec_score_thresh,
+        text_det_limit_side_len,
+        text_det_limit_type,
+    ):
         raise TypeError(
-            f"unsupported prediction argument at threshold {text_rec_score_thresh}"
+            "unsupported prediction argument at threshold "
+            f"{text_rec_score_thresh}, detection limit "
+            f"{text_det_limit_side_len}/{text_det_limit_type}"
         )
 
 
@@ -133,6 +156,7 @@ def test_paddleocr_adapter_preserves_inference_cause_for_diagnostics():
     engine = object.__new__(PaddleOcrEngine)
     engine._model = FailingPredictModel()
     engine._min_confidence = 0.25
+    engine._detection_max_dimension = 960
 
     with pytest.raises(
         OcrInferenceFailed,

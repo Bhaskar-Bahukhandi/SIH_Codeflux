@@ -30,7 +30,7 @@ Columns:
 
 ## Dataset classes
 
-- `real_package`: a camera capture of a physical retail package. Only this class contributes to the real-package OCR gates.
+- `real_package`: a camera photograph of a physical retail package. It may be locally collected or an openly licensed public camera photograph when source provenance is retained. Only this class contributes to real-package OCR case counts; CER/WER still require reviewed ground truth.
 - `web_reference`: a public manufacturer/product reference image with a recorded source page. Useful for testing OCR execution and packaging diversity, but it does not count as field-camera evidence.
 - `synthetic`: generated or constructed regression fixture.
 - `other`: evidence outside the above classes.
@@ -109,6 +109,8 @@ Those values are examples, not project claims or frozen acceptance thresholds.
 - Synthetic images are regression evidence only.
 - Web-reference images are observation/reference evidence only and never satisfy the real-package OCR gate.
 - Unlabeled real images cannot support a CER/WER claim.
+- The public-physical OCR workflow executes PP-OCRv5 on openly licensed camera photographs of physical packages. A successful run demonstrates real-package runtime robustness only; it cannot produce CER/WER until reviewed transcriptions are supplied.
+- Public physical-package photographs do not prove capture through the CODEFLUX mobile app.
 - Labeled images that fail OCR are reported as failures, not scored as if they succeeded.
 - Real-package OCR validation remains pending until the team runs this harness on representative package photographs and reviews the report.
 - Unlabeled web-reference OCR output can demonstrate engine execution/robustness, but it cannot produce CER/WER accuracy claims.
@@ -122,7 +124,10 @@ A reproducible web-reference observation on the CI Linux CPU runner currently us
 - `paddlepaddle==3.2.2`;
 - `OCR_MODEL_VERSION=PP-OCRv5`;
 - `OCR_DEVICE=cpu`;
+- `OCR_DETECTION_MAX_DIMENSION=960`;
 - `OCR_ENABLE_MKLDNN=false`.
+
+The detection pipeline uses `text_det_limit_type=max` with the 960-pixel limit. This bounds CPU inference memory for high-resolution camera captures without modifying the immutable original evidence bytes.
 
 The MKLDNN/oneDNN path is disabled for this baseline because PaddlePaddle 3.3.x CPU inference exposed an upstream PIR/oneDNN conversion regression during validation. Re-enable it only after a dedicated runtime validation proves the configured PaddlePaddle/OCR combination works.
 
