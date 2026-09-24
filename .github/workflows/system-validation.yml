@@ -1,0 +1,82 @@
+name: System Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "services/api/**"
+      - "apps/dashboard/**"
+      - "apps/mobile/**"
+      - "scripts/validate_sih_demo.ps1"
+      - "docs/validation/**"
+      - ".github/workflows/system-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API migration and regression
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      APP_ENV: test
+      JWT_SECRET: system-validation-test-secret
+      DATABASE_URL: sqlite+pysqlite:///./system-validation.sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+      - name: Install API
+        run: python -m pip install -e ".[dev]"
+      - name: Validate migration chain
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+      - name: Run full API regression
+        run: pytest
+
+  dashboard:
+    name: Dashboard tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dashboard dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test dashboard
+        run: npm test
+      - name: Build dashboard
+        run: npm run build
+
+  mobile:
+    name: Flutter analysis and regression
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Run existing Flutter tests
+        run: timeout --signal=TERM 20m flutter test --reporter expanded
