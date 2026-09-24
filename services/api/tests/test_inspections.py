@@ -1,3 +1,4 @@
+from app.models.inspection import Inspection, InspectionStatus
 from app.models.user import UserRole
 
 
@@ -179,3 +180,12 @@ def test_blank_product_name_is_rejected(client, user_factory, auth_headers):
     )
 
     assert response.status_code == 422
+
+
+def test_inspection_status_storage_fits_every_lifecycle_value():
+    status_type = Inspection.__table__.c.status.type
+    longest_database_value = max(len(status.name) for status in InspectionStatus)
+
+    assert status_type.length is not None
+    assert status_type.length >= longest_database_value
+    assert len(InspectionStatus.PENDING_REVIEW.name) == 14
