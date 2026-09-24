@@ -29,6 +29,15 @@ The current branch adds read-oriented inspection detail using existing persisted
 
 Missing latest quality/geometry/OCR/declaration/rule/finalization records are treated as absent evidence, not invented state.
 
+### 8C — monitoring polish, accessibility and integration validation
+
+- operational status counts are computed only from the persisted inspection list returned by the API;
+- no static compliance percentages, heatmaps or national statistics are shown;
+- keyboard skip navigation and explicit focus handling are provided;
+- responsive status and evidence layouts remain usable on narrow screens;
+- an integration test covers the real client contract from sign-in through inspection selection and evidence detail;
+- dashboard CI continues to run component/integration tests, the production build, the API migration chain and the backend regression suite.
+
 ## Safety and authorization boundaries
 
 The dashboard verifies identity through `GET /api/v1/auth/me` and only opens for `supervisor` or `admin` roles.
