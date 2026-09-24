@@ -11,6 +11,10 @@ def get_capture_or_raise(
     capture_id: str,
 ) -> Capture:
     capture = db.get(Capture, capture_id)
-    if capture is None or capture.inspection_id != inspection_id:
+    if (
+        capture is None
+        or capture.inspection_id != inspection_id
+        or capture.discarded_at is not None
+    ):
         raise not_found("capture_not_found", "Capture not found.")
     return capture
