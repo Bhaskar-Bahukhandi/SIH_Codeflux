@@ -809,13 +809,12 @@ class SyncQueueRepository {
         operation.type == SyncOperationType.discardCapture) {
       return operation.resourceId == captureId;
     }
-    return switch (operation.type) {
-      SyncOperationType.processCapture ||
-      SyncOperationType.analyzeGeometry ||
-      SyncOperationType.runOcr =>
-        operation.payload["capture_id"] == captureId,
-      _ => false,
-    };
+    if (operation.type == SyncOperationType.processCapture ||
+        operation.type == SyncOperationType.analyzeGeometry ||
+        operation.type == SyncOperationType.runOcr) {
+      return operation.payload["capture_id"] == captureId;
+    }
+    return false;
   }
 
   bool _sameImmutableOperation(
