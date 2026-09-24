@@ -124,7 +124,10 @@ A reproducible web-reference observation on the CI Linux CPU runner currently us
 - `paddlepaddle==3.2.2`;
 - `OCR_MODEL_VERSION=PP-OCRv5`;
 - `OCR_DEVICE=cpu`;
+- `OCR_DETECTION_MAX_DIMENSION=960`;
 - `OCR_ENABLE_MKLDNN=false`.
+
+The detection pipeline uses `text_det_limit_type=max` with the 960-pixel limit. This bounds CPU inference memory for high-resolution camera captures without modifying the immutable original evidence bytes.
 
 The MKLDNN/oneDNN path is disabled for this baseline because PaddlePaddle 3.3.x CPU inference exposed an upstream PIR/oneDNN conversion regression during validation. Re-enable it only after a dedicated runtime validation proves the configured PaddlePaddle/OCR combination works.
 
