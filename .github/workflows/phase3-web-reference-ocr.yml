@@ -1,0 +1,110 @@
+name: Phase 3 Web Reference OCR Observation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "evaluation/phase2/web_reference_sources.csv"
+      - "scripts/prepare_phase2_web_reference.py"
+      - "scripts/prepare_phase3_web_reference.py"
+      - "services/api/app/services/ocr_engine.py"
+      - ".github/workflows/phase3-web-reference-ocr.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  observe-web-reference-ocr:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      APP_ENV: test
+      JWT_SECRET: phase3-web-reference-ocr-test-secret
+      DATABASE_URL: sqlite+pysqlite:///./phase3-web-reference-ocr.sqlite
+      OCR_INFERENCE_ENGINE: paddle
+      OCR_LANGUAGE: en
+      OCR_MODEL_VERSION: PP-OCRv5
+      OCR_DEVICE: cpu
+      OCR_MIN_CONFIDENCE: "0.0"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+
+      - name: Download curated official package references
+        run: python scripts/prepare_phase3_web_reference.py
+
+      - name: Install API, PaddleOCR and CPU PaddlePaddle
+        working-directory: services/api
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,ocr]"
+          python -m pip install "paddlepaddle==3.3.1"
+
+      - name: Verify PaddlePaddle runtime
+        working-directory: services/api
+        run: |
+          python - <<'PY'
+          import paddle
+          print("paddlepaddle", paddle.__version__)
+          paddle.utils.run_check()
+          PY
+
+      - name: Run Phase 3 OCR observation
+        working-directory: services/api
+        run: |
+          timeout --signal=TERM 18m python -m app.cli.validate_ocr \
+            --manifest ../../evaluation/phase3/manifest.csv \
+            --output ../../evaluation/reports/phase3-web-reference-ocr.json
+
+      - name: Verify observation evidence separation
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("evaluation/reports/phase3-web-reference-ocr.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["dataset_counts"]["web_reference"] != 12:
+              raise SystemExit("Expected exactly 12 curated web_reference OCR cases.")
+          if report["dataset_counts"]["real_package"] != 0:
+              raise SystemExit("Web-reference OCR contaminated real_package count.")
+          if report["real_package_labeled_count"] != 0:
+              raise SystemExit("Web-reference OCR contaminated real labeled count.")
+          if report["real_package_scored_count"] != 0:
+              raise SystemExit("Web-reference OCR contaminated real scored count.")
+          if report["web_reference_labeled_count"] != 0:
+              raise SystemExit("Unlabeled observation unexpectedly contains ground truth.")
+          if len(report["web_reference_source_domains"]) != 4:
+              raise SystemExit("Expected four official source domains.")
+          print(
+              "OCR observation:",
+              report["successful_case_count"],
+              "successful /",
+              report["case_count"],
+              "cases;",
+              report["failed_case_count"],
+              "failed.",
+          )
+          PY
+
+      - name: Upload OCR observation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-web-reference-ocr
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            evaluation/phase3/manifest.csv
+            evaluation/phase3/web_reference_acquisition.json
+            evaluation/reports/phase3-web-reference-ocr.json
