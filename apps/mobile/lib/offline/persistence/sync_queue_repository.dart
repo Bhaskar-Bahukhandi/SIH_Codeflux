@@ -16,6 +16,16 @@ enum _DependencyDisposition {
   missing,
 }
 
+class EvidenceDiscardQueuePlan {
+  const EvidenceDiscardQueuePlan({
+    required this.requiresRemoteDiscard,
+    this.uploadOperationId,
+  });
+
+  final bool requiresRemoteDiscard;
+  final String? uploadOperationId;
+}
+
 class SyncQueueRepository {
   SyncQueueRepository(this.offlineDatabase);
 
@@ -117,6 +127,118 @@ class SyncQueueRepository {
       localResourceState: localState,
       operationCounts: Map<SyncState, int>.unmodifiable(counts),
     );
+  }
+
+  Future<EvidenceDiscardQueuePlan> evidenceDiscardPlan({
+    required String inspectionId,
+    required String evidenceId,
+  }) async {
+    final operations = await listForInspection(inspectionId);
+    final captureOperations = operations.where((operation) {
+      if (operation.type == SyncOperationType.uploadCapture) {
+        return operation.resourceId == evidenceId;
+      }
+      if (operation.type == SyncOperationType.processCapture ||
+          operation.type == SyncOperationType.analyzeGeometry ||
+          operation.type == SyncOperationType.runOcr) {
+        return operation.payload["capture_id"] == evidenceId;
+      }
+      return false;
+    }).toList(growable: false);
+
+    if (captureOperations.isEmpty) {
+      throw StateError("Evidence has no queued synchronization pipeline.");
+    }
+    if (captureOperations.any(
+      (operation) => operation.state == SyncState.syncing,
+    )) {
+      throw StateError(
+        "Wait for the current image synchronization attempt to finish before removing it.",
+      );
+    }
+
+    final uploads = captureOperations
+        .where(
+          (operation) => operation.type == SyncOperationType.uploadCapture,
+        )
+        .toList(growable: false);
+    if (uploads.length != 1) {
+      throw StateError(
+        "Evidence must have exactly one upload operation before it can be removed.",
+      );
+    }
+
+    final upload = uploads.single;
+    if (upload.state == SyncState.conflict ||
+        upload.state == SyncState.blocked) {
+      throw StateError(
+        "Resolve the image upload sync issue before removing this evidence.",
+      );
+    }
+
+    final requiresRemoteDiscard =
+        upload.state == SyncState.synced ||
+        upload.state == SyncState.retryRequired ||
+        upload.attemptCount > 0;
+
+    return EvidenceDiscardQueuePlan(
+      requiresRemoteDiscard: requiresRemoteDiscard,
+      uploadOperationId:
+          requiresRemoteDiscard ? upload.id : null,
+    );
+  }
+
+  Future<void> cancelPendingEvidenceWork({
+    required String inspectionId,
+    required String evidenceId,
+    required bool keepUpload,
+  }) async {
+    final operations = await listForInspection(inspectionId);
+    final matching = operations.where((operation) {
+      if (operation.type == SyncOperationType.uploadCapture) {
+        return operation.resourceId == evidenceId;
+      }
+      if (operation.type == SyncOperationType.processCapture ||
+          operation.type == SyncOperationType.analyzeGeometry ||
+          operation.type == SyncOperationType.runOcr) {
+        return operation.payload["capture_id"] == evidenceId;
+      }
+      return false;
+    }).toList(growable: false);
+
+    if (matching.any((operation) => operation.state == SyncState.syncing)) {
+      throw StateError(
+        "Wait for the current image synchronization attempt to finish before removing it.",
+      );
+    }
+
+    final deletableIds = matching
+        .where((operation) {
+          if (operation.state == SyncState.synced) {
+            return false;
+          }
+          if (keepUpload &&
+              operation.type == SyncOperationType.uploadCapture) {
+            return false;
+          }
+          return true;
+        })
+        .map((operation) => operation.id)
+        .toList(growable: false);
+
+    if (deletableIds.isEmpty) {
+      return;
+    }
+
+    await offlineDatabase.database.transaction((txn) async {
+      for (final id in deletableIds) {
+        await txn.delete(
+          "sync_operations",
+          where: "id = ?",
+          whereArgs: <Object?>[id],
+        );
+      }
+    });
   }
 
   Future<void> cancelPendingWorkForInspectionDiscard(
