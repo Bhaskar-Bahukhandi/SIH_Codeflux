@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://codeflux:codeflux@localhost:5432/codeflux"
 
     media_root: Path = Path("./local_data/media")
+    dashboard_root: Path | None = None
     max_capture_mb: int = Field(default=12, ge=1, le=50)
     max_capture_pixels: int = Field(default=40_000_000, ge=1_000_000, le=100_000_000)
 
