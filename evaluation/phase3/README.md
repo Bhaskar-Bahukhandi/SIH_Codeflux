@@ -112,3 +112,18 @@ Those values are examples, not project claims or frozen acceptance thresholds.
 - Labeled images that fail OCR are reported as failures, not scored as if they succeeded.
 - Real-package OCR validation remains pending until the team runs this harness on representative package photographs and reviews the report.
 - Unlabeled web-reference OCR output can demonstrate engine execution/robustness, but it cannot produce CER/WER accuracy claims.
+
+
+## Validated CPU observation runtime
+
+A reproducible web-reference observation on the CI Linux CPU runner currently uses:
+
+- `paddleocr==3.7.0`;
+- `paddlepaddle==3.2.2`;
+- `OCR_MODEL_VERSION=PP-OCRv5`;
+- `OCR_DEVICE=cpu`;
+- `OCR_ENABLE_MKLDNN=false`.
+
+The MKLDNN/oneDNN path is disabled for this baseline because PaddlePaddle 3.3.x CPU inference exposed an upstream PIR/oneDNN conversion regression during validation. Re-enable it only after a dedicated runtime validation proves the configured PaddlePaddle/OCR combination works.
+
+The first successful official-package observation executed 12/12 web-reference cases with no OCR inference failures and returned 145 OCR text blocks in total. Because those 12 cases intentionally have no human ground-truth transcriptions, the run proves runtime execution only; it does not establish CER/WER accuracy.
