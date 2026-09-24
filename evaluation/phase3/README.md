@@ -23,9 +23,19 @@ Columns:
 | --- | --- | --- |
 | `case_id` | yes | Stable unique ID |
 | `image_path` | yes | Image path relative to the manifest |
-| `dataset_type` | yes | `real_package`, `synthetic`, or `other` |
+| `dataset_type` | yes | `real_package`, `web_reference`, `synthetic`, or `other` |
 | `ground_truth_path` | no | UTF-8 human transcription relative to the manifest |
+| `source_page_url` | required for `web_reference` | Public source page for the official/reference package image |
 | `notes` | yes, may be blank | Capture/context notes |
+
+## Dataset classes
+
+- `real_package`: a camera capture of a physical retail package. Only this class contributes to the real-package OCR gates.
+- `web_reference`: a public manufacturer/product reference image with a recorded source page. Useful for testing OCR execution and packaging diversity, but it does not count as field-camera evidence.
+- `synthetic`: generated or constructed regression fixture.
+- `other`: evidence outside the above classes.
+
+Web-reference cases are reported separately so their observations cannot silently improve the real-package CER/WER metrics.
 
 ## Metric policy
 
@@ -51,6 +61,8 @@ Each image goes through:
 5. the configured OCR engine.
 
 The report records which source type was actually used.
+
+The report also records SHA-256 provenance for the manifest, image bytes and any ground-truth transcription, plus manifest-relative paths rather than developer-specific absolute paths.
 
 A quality status such as `retake_recommended` does not block OCR in the evaluation harness and is not a legal result.
 
@@ -95,6 +107,8 @@ Those values are examples, not project claims or frozen acceptance thresholds.
 
 - Unit tests with fake OCR engines prove orchestration and metric logic only.
 - Synthetic images are regression evidence only.
+- Web-reference images are observation/reference evidence only and never satisfy the real-package OCR gate.
 - Unlabeled real images cannot support a CER/WER claim.
 - Labeled images that fail OCR are reported as failures, not scored as if they succeeded.
 - Real-package OCR validation remains pending until the team runs this harness on representative package photographs and reviews the report.
+- Unlabeled web-reference OCR output can demonstrate engine execution/robustness, but it cannot produce CER/WER accuracy claims.

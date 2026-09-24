@@ -1,4 +1,4 @@
-case_id,image_path,dataset_type,ground_truth_path,notes
-package-001,images/package-001.jpg,real_package,ground_truth/package-001.txt,Human-transcribed visible package text
-package-002,images/package-002.jpg,real_package,,Unlabeled real package; metrics will remain unavailable
-synthetic-001,images/synthetic-001.jpg,synthetic,ground_truth/synthetic-001.txt,Synthetic regression fixture only
+case_id,image_path,dataset_type,ground_truth_path,notes,source_page_url
+package-001,images/package-001.jpg,real_package,ground_truth/package-001.txt,Human-reviewed field/package capture,
+web-parle-001,images/web-parle-001.png,web_reference,,Official product-page observation,https://www.parleproducts.com/brands/parle-g
+synthetic-001,images/synthetic-001.jpg,synthetic,ground_truth/synthetic-001.txt,Synthetic regression fixture,
