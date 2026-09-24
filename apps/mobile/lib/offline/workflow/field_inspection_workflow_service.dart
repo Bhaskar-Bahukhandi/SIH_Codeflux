@@ -315,6 +315,9 @@ class FieldInspectionWorkflowService {
     if (evidence == null) {
       throw StateError("Local evidence does not exist.");
     }
+    if (evidence.discardedAt != null) {
+      throw StateError("Removed evidence cannot be processed again.");
+    }
     await _ownedInspection(
       officer: officer,
       inspectionId: evidence.inspectionId,
@@ -330,6 +333,74 @@ class FieldInspectionWorkflowService {
       createInspectionOperationId: createOperation.id,
       now: now,
     );
+  }
+
+  Future<void> removeEvidence({
+    required OfficerSessionContext officer,
+    required String inspectionId,
+    required String evidenceId,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    await _ownedInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+    );
+
+    final evidence = await drafts.getEvidence(evidenceId);
+    if (evidence == null || evidence.inspectionId != inspectionId) {
+      throw StateError("Local evidence does not exist for this inspection.");
+    }
+    if (evidence.discardedAt != null) {
+      return;
+    }
+
+    final existing = await queue.listForInspection(inspectionId);
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.submitInspection,
+    )) {
+      throw StateError(
+        "Images can only be removed before preliminary review is queued.",
+      );
+    }
+
+    final existingDiscard = existing.where(
+      (operation) =>
+          operation.type == SyncOperationType.discardCapture &&
+          operation.resourceId == evidenceId,
+    );
+    if (existingDiscard.isNotEmpty) {
+      await queue.cancelPendingEvidenceWork(
+        inspectionId: inspectionId,
+        evidenceId: evidenceId,
+        keepUpload: true,
+      );
+      await drafts.markEvidenceDiscarded(evidenceId, now: now);
+      return;
+    }
+
+    final plan = await queue.evidenceDiscardPlan(
+      inspectionId: inspectionId,
+      evidenceId: evidenceId,
+    );
+
+    if (plan.requiresRemoteDiscard) {
+      await queue.enqueue(
+        operationFactory.discardCapture(
+          inspectionId: inspectionId,
+          captureId: evidenceId,
+          dependencyIds: <String>[plan.uploadOperationId!],
+          now: now,
+        ),
+      );
+    }
+
+    await queue.cancelPendingEvidenceWork(
+      inspectionId: inspectionId,
+      evidenceId: evidenceId,
+      keepUpload: plan.requiresRemoteDiscard,
+    );
+    await drafts.markEvidenceDiscarded(evidenceId, now: now);
   }
 
   Future<InspectionSubmissionPipeline> queueForReview({
@@ -377,6 +448,14 @@ class FieldInspectionWorkflowService {
         .toList(growable: false);
     if (detailUpdates.isNotEmpty) {
       ocrDependencies.add(detailUpdates.last.id);
+    }
+    final captureDiscards = existing
+        .where(
+          (operation) => operation.type == SyncOperationType.discardCapture,
+        )
+        .toList(growable: false);
+    for (final discard in captureDiscards) {
+      ocrDependencies.add(discard.id);
     }
 
     final extractionExisting = _singleType(
