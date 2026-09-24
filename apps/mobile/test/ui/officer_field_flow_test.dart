@@ -146,18 +146,23 @@ class FieldUiHarness {
 Future<void> pumpUntilFound(
   WidgetTester tester,
   Finder finder, {
-  int maxPumps = 60,
+  int maxPumps = 180,
 }) async {
   for (var index = 0; index < maxPumps; index += 1) {
     await tester.pump(const Duration(milliseconds: 100));
     if (finder.evaluate().isNotEmpty) {
       return;
     }
+    // SQLite/FFI work completes on real asynchronous time rather than the
+    // widget test's fake clock. Give it a bounded wall-clock opportunity to
+    // progress when the full CI suite is running several test files at once.
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
   }
-  throw TestFailure("Timed out waiting for expected widget.");
+  throw TestFailure(
+    "Timed out waiting for expected widget after bounded async polling.",
+  );
 }
 
 Future<void> unmountApp(WidgetTester tester) async {
