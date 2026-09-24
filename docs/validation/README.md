@@ -154,6 +154,15 @@ After the repository-controlled validation work, the remaining non-deferred evid
 
 None of these may be reported as PASS based only on synthetic, web-reference, emulator, container or mocked evidence.
 
+
+## Current physical/live demo freeze
+
+The current validated demo boundary is recorded in [final-demo-freeze-2026-09-24.md](final-demo-freeze-2026-09-24.md).
+
+A real Android handset has successfully exercised the current Officer APK against the live Railway backend through authentication, capture, retry recovery, OCR/rule processing and final submission. The final live submit for inspection `17695ce1-8915-42e3-a70d-e24288c68470` returned HTTP 200 after the production schema/rule-pack/OCR stability fixes. The updated APK was subsequently reported as working flawlessly on the physical handset.
+
+This is **PASS** for current mobile-client/live-backend interoperability on the tested Android device. It does not convert the remaining reviewed-accuracy, explicit offline-restart-reconnect, optional ML Kit physical-runtime or stronger evidence-file persistence gates into PASS.
+
 ## Claim boundary
 
 A green System Validation workflow means the checked-in automated prototype paths are regression-clean on the tested toolchains.

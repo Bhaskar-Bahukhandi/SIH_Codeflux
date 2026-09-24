@@ -90,11 +90,16 @@ jobs:
       - name: Package and fingerprint artifact
         run: |
           mkdir -p build/demo-artifact
+          APP_VERSION="$(awk '/^version:/ {print $2}' pubspec.yaml)"
+          SAFE_VERSION="${APP_VERSION/+/-build}"
+          APK_NAME="CODEFLUX-SIH-demo-${SAFE_VERSION}-debug.apk"
+
           cp build/app/outputs/flutter-apk/app-debug.apk \
-            build/demo-artifact/CODEFLUX-SIH-demo-debug.apk
+            "build/demo-artifact/${APK_NAME}"
 
           {
-            echo "artifact=CODEFLUX-SIH-demo-debug.apk"
+            echo "artifact=${APK_NAME}"
+            echo "app_version=${APP_VERSION}"
             echo "commit=$GITHUB_SHA"
             echo "api_url=$CODEFLUX_DEMO_API_URL"
             echo "flutter=3.47.5"
@@ -102,7 +107,7 @@ jobs:
             echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > build/demo-artifact/build-metadata.txt
 
-          sha256sum build/demo-artifact/CODEFLUX-SIH-demo-debug.apk \
+          sha256sum "build/demo-artifact/${APK_NAME}" \
             | tee build/demo-artifact/SHA256SUMS.txt
 
       - name: Upload demo APK
