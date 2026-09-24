@@ -33,6 +33,23 @@ void main() {
               updated_at TEXT NOT NULL
             )
           """);
+          await db.execute("""
+            CREATE TABLE local_evidence (
+              id TEXT PRIMARY KEY,
+              inspection_id TEXT NOT NULL,
+              view_type TEXT NOT NULL,
+              local_path TEXT NOT NULL,
+              sha256 TEXT NOT NULL,
+              size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+              sync_state TEXT NOT NULL,
+              remote_id TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (inspection_id)
+                REFERENCES local_inspections(id)
+                ON DELETE RESTRICT
+            )
+          """);
         },
       ),
     );
@@ -54,5 +71,13 @@ void main() {
     );
     final names = tables.map((row) => row["name"]).toSet();
     expect(names, contains("pending_capture_intents"));
+
+    final evidenceColumns = await upgraded.database.rawQuery(
+      "PRAGMA table_info(local_evidence)",
+    );
+    expect(
+      evidenceColumns.map((row) => row["name"]).toSet(),
+      contains("discarded_at"),
+    );
   });
 }
