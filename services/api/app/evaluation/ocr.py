@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
 from typing import Literal
+from urllib.parse import urlparse
 
 from app.core.config import Settings
 from app.services.image_quality import (
@@ -23,8 +26,8 @@ from app.services.perspective import (
     geometry_thresholds_from_settings,
 )
 
-DatasetType = Literal["real_package", "synthetic", "other"]
-_ALLOWED_DATASET_TYPES = {"real_package", "synthetic", "other"}
+DatasetType = Literal["real_package", "web_reference", "synthetic", "other"]
+_ALLOWED_DATASET_TYPES = {"real_package", "web_reference", "synthetic", "other"}
 _WHITESPACE = re.compile(r"\s+")
 
 
@@ -34,6 +37,8 @@ class OcrManifestRow:
     image_path: Path
     dataset_type: DatasetType
     ground_truth_path: Path | None
+    source_page_url: str | None
+    source_domain: str | None
     notes: str
 
 
@@ -76,6 +81,30 @@ def word_error_rate(reference: str, prediction: str) -> float:
     pred_words = normalize_metric_text(prediction).split()
     distance = _edit_distance(ref_words, pred_words)
     return distance / max(1, len(ref_words))
+
+
+def _source_page(
+    value: str | None,
+    *,
+    dataset_type: str,
+    line_number: int,
+) -> tuple[str | None, str | None]:
+    source_page_url = (value or "").strip() or None
+    if source_page_url is None:
+        if dataset_type == "web_reference":
+            raise ValueError(
+                f"Manifest line {line_number}: source_page_url is required "
+                "for web_reference cases."
+            )
+        return None, None
+
+    parsed = urlparse(source_page_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(
+            f"Manifest line {line_number}: source_page_url must be an "
+            "absolute http(s) URL."
+        )
+    return source_page_url, parsed.hostname.lower()
 
 
 def load_ocr_manifest(path: Path) -> list[OcrManifestRow]:
@@ -128,6 +157,11 @@ def load_ocr_manifest(path: Path) -> list[OcrManifestRow]:
                 )
 
             truth_value = (raw.get("ground_truth_path") or "").strip()
+            source_page_url, source_domain = _source_page(
+                raw.get("source_page_url"),
+                dataset_type=dataset_type,
+                line_number=line_number,
+            )
             rows.append(
                 OcrManifestRow(
                     case_id=case_id,
@@ -138,6 +172,8 @@ def load_ocr_manifest(path: Path) -> list[OcrManifestRow]:
                         if truth_value
                         else None
                     ),
+                    source_page_url=source_page_url,
+                    source_domain=source_domain,
                     notes=(raw.get("notes") or "").strip(),
                 )
             )
@@ -158,16 +194,31 @@ def _ground_truth(row: OcrManifestRow) -> str | None:
     return row.ground_truth_path.read_text(encoding="utf-8")
 
 
-def _case_base(row: OcrManifestRow, ground_truth: str | None) -> dict:
+def _case_base(
+    row: OcrManifestRow,
+    ground_truth: str | None,
+    *,
+    manifest_parent: Path,
+) -> dict:
+    image_path = Path(os.path.relpath(row.image_path, start=manifest_parent)).as_posix()
+    truth_path = (
+        Path(os.path.relpath(row.ground_truth_path, start=manifest_parent)).as_posix()
+        if row.ground_truth_path is not None
+        else None
+    )
     return {
         "case_id": row.case_id,
         "dataset_type": row.dataset_type,
-        "image_path": str(row.image_path),
-        "ground_truth_path": (
-            str(row.ground_truth_path)
-            if row.ground_truth_path is not None
+        "image_path": image_path,
+        "image_sha256": None,
+        "ground_truth_path": truth_path,
+        "ground_truth_sha256": (
+            hashlib.sha256(row.ground_truth_path.read_bytes()).hexdigest()
+            if row.ground_truth_path is not None and row.ground_truth_path.is_file()
             else None
         ),
+        "source_page_url": row.source_page_url,
+        "source_domain": row.source_domain,
         "notes": row.notes,
         "ground_truth_text": ground_truth,
         "normalized_ground_truth_text": (
@@ -184,7 +235,9 @@ def evaluate_ocr_manifest(
     settings: Settings,
     engine: OcrEngine,
 ) -> dict:
-    rows = load_ocr_manifest(manifest_path)
+    resolved_manifest = manifest_path.expanduser().resolve()
+    rows = load_ocr_manifest(resolved_manifest)
+    manifest_sha256 = hashlib.sha256(resolved_manifest.read_bytes()).hexdigest()
     quality_thresholds = quality_thresholds_from_settings(settings)
     geometry_thresholds = geometry_thresholds_from_settings(settings)
 
@@ -196,10 +249,15 @@ def evaluate_ocr_manifest(
             )
 
         ground_truth = _ground_truth(row)
-        case = _case_base(row, ground_truth)
+        case = _case_base(
+            row,
+            ground_truth,
+            manifest_parent=resolved_manifest.parent,
+        )
 
         try:
             original = row.image_path.read_bytes()
+            case["image_sha256"] = hashlib.sha256(original).hexdigest()
             normalized = normalize_capture(original)
             quality = assess_quality(
                 normalized.data,
@@ -323,6 +381,10 @@ def evaluate_ocr_manifest(
         case for case in cases
         if case["dataset_type"] == "real_package"
     ]
+    web_reference_cases = [
+        case for case in cases
+        if case["dataset_type"] == "web_reference"
+    ]
     labeled_real = [
         case
         for case in real_cases
@@ -331,6 +393,16 @@ def evaluate_ocr_manifest(
     scored_real = [
         case
         for case in labeled_real
+        if case["status"] == "ok"
+    ]
+    labeled_web_reference = [
+        case
+        for case in web_reference_cases
+        if case["ground_truth_text"] is not None
+    ]
+    scored_web_reference = [
+        case
+        for case in labeled_web_reference
         if case["status"] == "ok"
     ]
 
@@ -345,7 +417,9 @@ def evaluate_ocr_manifest(
         warnings.append("one_or_more_cases_failed")
 
     return {
-        "manifest": str(manifest_path.expanduser().resolve()),
+        "manifest": resolved_manifest.name,
+        "manifest_sha256": manifest_sha256,
+        "input_provenance_version": "ocr-input-sha256-v1",
         "case_count": len(cases),
         "successful_case_count": len(successful),
         "failed_case_count": len(cases) - len(successful),
@@ -356,6 +430,16 @@ def evaluate_ocr_manifest(
         "scored_case_count": len(labeled),
         "real_package_labeled_count": len(labeled_real),
         "real_package_scored_count": len(scored_real),
+        "web_reference_count": len(web_reference_cases),
+        "web_reference_labeled_count": len(labeled_web_reference),
+        "web_reference_scored_count": len(scored_web_reference),
+        "web_reference_source_domains": sorted(
+            {
+                case["source_domain"]
+                for case in web_reference_cases
+                if case["source_domain"] is not None
+            }
+        ),
         "metric_normalization": {
             "unicode": "NFC",
             "whitespace": "collapse_runs",
@@ -404,6 +488,28 @@ def evaluate_ocr_manifest(
                 6,
             )
             if scored_real
+            else None
+        ),
+        "web_reference_mean_character_error_rate": (
+            round(
+                mean(
+                    case["character_error_rate"]
+                    for case in scored_web_reference
+                ),
+                6,
+            )
+            if scored_web_reference
+            else None
+        ),
+        "web_reference_mean_word_error_rate": (
+            round(
+                mean(
+                    case["word_error_rate"]
+                    for case in scored_web_reference
+                ),
+                6,
+            )
+            if scored_web_reference
             else None
         ),
         "warnings": warnings,
