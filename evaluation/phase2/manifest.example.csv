@@ -1,4 +1,0 @@
-case_id,image_path,dataset_type,expected_quality_status,expected_geometry_status,source_page_url,notes
-package-001,images/package-001.jpg,real_package,,,,Fill expected statuses only after human review
-web-parle-001,images/web-parle-001.jpg,web_reference,,,https://www.parleproducts.com/brands/parle-g-gluco,Official product-page reference; not field evidence
-synthetic-001,images/synthetic-001.jpg,synthetic,retake_recommended,not_detected,,Example synthetic regression row

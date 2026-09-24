@@ -1,12 +1,4 @@
-# OS / editors
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Secrets / local configuration
+# Local configuration and secrets
 .env
 .env.*
 !.env.example
@@ -16,13 +8,8 @@ Thumbs.db
 # Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .venv/
 venv/
-dist/
-build/
 *.egg-info/
 
 # Flutter / Dart
@@ -30,19 +17,15 @@ build/
 .packages
 .pub/
 build/
-coverage/
 android/.gradle/
 ios/Pods/
 
 # Node / React
 node_modules/
-.next/
-out/
 dist/
-coverage/
 *.tsbuildinfo
 
-# Local databases and generated evidence
+# Local application data
 *.sqlite
 *.sqlite3
 *.db
@@ -51,15 +34,11 @@ uploads/
 generated_reports/
 tmp/
 
-# Local evaluation data and generated reports
-evaluation/phase2/images/
-evaluation/phase2/manifest.csv
-evaluation/phase3/images/
-evaluation/phase3/ground_truth/
-evaluation/phase3/manifest.csv
-evaluation/phase4/manifest.json
-evaluation/reports/
-
-# Logs
+# Editors / OS / logs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
 *.log
-logs/

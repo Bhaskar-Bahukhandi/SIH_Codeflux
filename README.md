@@ -1,93 +1,86 @@
-# SIH Codeflux — Legal Metrology Compliance System
+# CODEFLUX
 
-Smart India Hackathon 2026  
-Problem Statement ID: **SIH26034**
+**Smart India Hackathon 2026 - SIH26034**
 
-## Project goal
+CODEFLUX is our team's inspection-assistance prototype for checking packaged commodities under the Legal Metrology (Packaged Commodities) Rules, 2011.
 
-Build a practical inspection-assistance system for packaged commodities under the Legal Metrology (Packaged Commodities) Rules, 2011.
+The goal is simple: help an enforcement officer capture package evidence, extract the important declarations, run preliminary rule checks, review the findings, and keep a digital inspection record. The officer remains the final decision-maker.
 
-The core workflow is:
+## What the working prototype includes
 
-1. Capture product details and multiple package images.
-2. Pre-process images for orientation, perspective and readability.
-3. Extract visible text using OCR.
-4. Identify relevant declarations such as MRP, net quantity, manufacturer/packer/importer details, dates and consumer information.
-5. Combine evidence from multiple package views.
-6. Run versioned preliminary Legal Metrology checks.
-7. Let the officer verify, correct or recheck flagged findings.
-8. Generate an evidence-backed inspection report and retain inspection history.
-9. Support offline field work with later synchronization.
-10. Provide a dashboard for search, status, monitoring and export.
+- Flutter Officer app with product details and multi-image package capture.
+- Offline SQLite drafts, local image storage, retry/reconnect sync and conflict-safe replay.
+- Image quality checks and perspective correction with OpenCV.
+- PaddleOCR-based package text extraction.
+- Multi-image declaration fusion for **MRP** and **net quantity**.
+- Versioned preliminary Legal Metrology checks backed by the rule-pack JSON in this repository.
+- Officer review, correction and recheck flow.
+- Evidence-backed PDF inspection reports for finalized inspections.
+- React Supervisor dashboard with login, inspection history, search, status filters, evidence details and report download.
+- FastAPI backend with PostgreSQL, authentication, role-based access and audit records.
 
-## Project principles
+## Current scope
 
-- Officer verification remains the final decision gate.
-- Automated outputs must be traceable to image evidence and rule references.
-- Low-confidence or unsupported cases must be marked for review instead of guessed.
-- Legal checks must be implemented from verified official sources.
-- Core functionality must use real persisted data; no fake demo buttons or hard-coded compliance results.
-- Optional future ideas stay outside the SIH core unless the team explicitly moves them into scope.
+This is an SIH prototype, not a complete Legal Metrology automation platform.
 
-## Current status
+The current structured declaration/rule coverage is intentionally limited to MRP and net quantity for the supported retail-package profile. Broader fields such as manufacturer/importer details, date declarations, consumer-care information, physical font-size measurement and automated misleading-label detection are not claimed as completed.
 
-**Phase 8 — Supervisor dashboard over the persisted inspection workflow**
+## Technology
 
-Implemented foundation now includes:
+- **Mobile:** Flutter
+- **Dashboard:** React + Vite
+- **Backend:** Python + FastAPI
+- **Computer Vision:** OpenCV
+- **OCR:** PaddleOCR / PP-OCRv5
+- **Central Database:** PostgreSQL
+- **Offline Storage:** SQLite + local files
 
-- persisted/authenticated inspection workflow;
-- immutable package-image evidence and protected derivatives;
-- versioned image-quality and geometry assessments;
-- append-only OCR evidence with source/checksum provenance;
-- deterministic MRP and net-quantity extraction with multi-image conflict preservation;
-- reproducible quality/geometry, OCR and extraction evaluation harnesses;
-- first source-gated rule pack for Rule 6(1)(c) net-quantity evidence and Rule 6(1)(e) MRP evidence;
-- rule-pack ID/version/SHA-256 persisted on every evaluation;
-- officer-supplied applicability context persisted with the evaluation;
-- stale-extraction protection;
-- safe preliminary states that do not turn OCR non-detection into an automatic violation;
-- append-only Officer review records for the latest preliminary rule results;
-- explicit accepted / corrected / recheck-required review decisions;
-- structured Officer corrections stored separately from immutable machine evidence;
-- finalization gates that require current evidence and resolvable Officer review states;
-- immutable finalization snapshots with rule-pack/evidence provenance and SHA-256 integrity;
-- deterministic evidence-backed PDF report generation and protected retrieval;
-- replay-safe client-generated identities for offline/retry reconciliation;
-- durable Flutter local inspection/evidence persistence and dependency-aware sync queue;
-- outcome-unknown timeout reconciliation and restart recovery;
-- first functional Officer mobile workflow for login, local inspection creation, package-image capture, queue-for-review and sync;
-- authenticated Supervisor/Admin React dashboard backed by the existing API;
-- persisted inspection register with deterministic search and status filtering;
-- real-data operational status counts derived from persisted inspection records;
-- read-oriented inspection detail covering package evidence, latest quality/geometry/OCR state, declaration summaries, preliminary rule results and Officer review state;
-- finalized inspection metadata and authenticated evidence-backed PDF report retrieval;
-- dashboard component/integration tests, production build validation, keyboard navigation and responsive presentation.
+## Repository structure
 
-The project still does **not** claim broad declaration coverage, physical font-size measurement, automated penalty/notice issuance or production-ready field synchronization.
+```text
+apps/
+  mobile/       Officer field application
+  dashboard/    Supervisor web application
 
-A preliminary rule-engine pass remains only an evidence-check result. Finalization locks the reviewed evidence record and report; it does not invent a penalty or statutory notice.
+services/
+  api/          FastAPI backend and database migrations
 
-Real-package image-quality/geometry, OCR and declaration-extraction validation remain evidence gates. Synthetic tests are regression evidence only.
+packages/
+  rulepacks/    Versioned Legal Metrology rule data
 
-## Technical baseline
+scripts/
+  setup_mobile.ps1
+  prefetch_ocr_models.py
 
-- Mobile field app: Flutter
-- Web dashboard: React
-- Backend: Python + FastAPI
-- Computer vision / OCR: OpenCV + PaddleOCR
-- Central database: PostgreSQL
-- Offline local data: SQLite + local file storage
+Dockerfile
+README.md
+```
 
-## Repository workflow
+## Run the backend and dashboard
 
-Development is staged and reversible:
+The Docker image builds the React dashboard and serves it from the FastAPI service.
 
-- main stays stable.
-- Work is done on phase/feature branches.
-- Each phase has an explicit acceptance gate.
-- Validation evidence is required before a phase is considered complete.
-- Failed experiments should not replace the last known-good path.
+```bash
+docker build -t codeflux .
+docker run --env-file .env -p 8000:8000 codeflux
+```
 
-## Scope note
+Copy `.env.example` to `.env` and set a real PostgreSQL connection and a strong `JWT_SECRET` before running outside local development.
 
-This repository is for the SIH26034 enforcement-assistance prototype. Manufacturer portals, consumer scanners, e-commerce integrations, blockchain, RAG assistants and broader regulatory modules are not part of the current core build.
+## Run the mobile app
+
+The repository keeps platform scaffolding out of source control. Generate it locally first:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_mobile.ps1
+```
+
+Then run the app against the API:
+
+```bash
+flutter run --dart-define=CODEFLUX_API_URL=https://your-api.example/
+```
+
+## Team note
+
+We are keeping this repository focused on the working product. Generated evidence, test datasets, validation reports and temporary demo files should stay outside the main source tree.
