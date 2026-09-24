@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -221,10 +222,47 @@ def list_captures(
     inspection = get_visible_inspection_or_raise(db, inspection_id, user)
     statement = (
         select(Capture)
-        .where(Capture.inspection_id == inspection.id)
+        .where(
+            Capture.inspection_id == inspection.id,
+            Capture.discarded_at.is_(None),
+        )
         .order_by(Capture.created_at.asc())
     )
     return list(db.scalars(statement).all())
+
+
+@router.post("/{capture_id}/discard", response_model=CaptureRead)
+def discard_capture(
+    inspection_id: str,
+    capture_id: str,
+    db: Session = Depends(get_db),
+    officer: User = Depends(require_officer),
+) -> Capture:
+    inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    require_draft(inspection)
+
+    capture = db.get(Capture, capture_id)
+    if capture is None or capture.inspection_id != inspection.id:
+        raise not_found("capture_not_found", "Capture not found.")
+
+    if capture.discarded_at is not None:
+        return capture
+
+    capture.discarded_at = datetime.now(timezone.utc)
+    record_inspection_event(
+        db,
+        inspection_id=inspection.id,
+        actor_user_id=officer.id,
+        event_type=AuditEventType.CAPTURE_DISCARDED,
+        details={
+            "capture_id": capture.id,
+            "view_type": capture.view_type.value,
+            "sha256": capture.sha256,
+        },
+    )
+    db.commit()
+    db.refresh(capture)
+    return capture
 
 
 @router.get("/{capture_id}/content")
@@ -238,7 +276,11 @@ def get_capture_content(
     inspection = get_visible_inspection_or_raise(db, inspection_id, user)
     capture = db.get(Capture, capture_id)
 
-    if capture is None or capture.inspection_id != inspection.id:
+    if (
+        capture is None
+        or capture.inspection_id != inspection.id
+        or capture.discarded_at is not None
+    ):
         raise not_found("capture_not_found", "Capture not found.")
 
     path = storage.path_for(capture.storage_key)

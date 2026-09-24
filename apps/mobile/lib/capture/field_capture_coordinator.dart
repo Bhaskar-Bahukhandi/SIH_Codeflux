@@ -2,6 +2,37 @@ import "../app/officer_workspace_service.dart";
 import "evidence_acquisition_service.dart";
 import "pending_capture_repository.dart";
 
+class EvidenceReplacementResult {
+  const EvidenceReplacementResult._({
+    required this.savedNewEvidence,
+    required this.removedOldEvidence,
+    this.removalError,
+  });
+
+  const EvidenceReplacementResult.cancelled()
+      : this._(
+          savedNewEvidence: false,
+          removedOldEvidence: false,
+        );
+
+  const EvidenceReplacementResult.replaced()
+      : this._(
+          savedNewEvidence: true,
+          removedOldEvidence: true,
+        );
+
+  const EvidenceReplacementResult.oldEvidenceRetained(String error)
+      : this._(
+          savedNewEvidence: true,
+          removedOldEvidence: false,
+          removalError: error,
+        );
+
+  final bool savedNewEvidence;
+  final bool removedOldEvidence;
+  final String? removalError;
+}
+
 enum PendingCaptureRecoveryStatus {
   none,
   recovered,
@@ -64,6 +95,55 @@ class FieldCaptureCoordinator {
     );
     await pendingCaptures.complete(intent.id);
     return true;
+  }
+
+  Future<EvidenceReplacementResult> replaceAndAttach({
+    required String inspectionId,
+    required String evidenceId,
+    required String viewType,
+    required EvidenceSource source,
+    DateTime? now,
+  }) async {
+    final intent = await pendingCaptures.begin(
+      inspectionId: inspectionId,
+      viewType: viewType,
+      source: source.name,
+      now: now,
+    );
+
+    AcquiredEvidence? acquired;
+    try {
+      acquired = await acquisition.acquire(source);
+    } catch (_) {
+      await pendingCaptures.discard(intent.id);
+      rethrow;
+    }
+
+    if (acquired == null) {
+      await pendingCaptures.discard(intent.id);
+      return const EvidenceReplacementResult.cancelled();
+    }
+
+    await workspace.addEvidence(
+      inspectionId: inspectionId,
+      viewType: viewType,
+      bytes: acquired.bytes,
+      originalFilename: acquired.filename,
+      now: now,
+    );
+    await pendingCaptures.complete(intent.id);
+
+    try {
+      await workspace.removeEvidence(
+        evidenceId: evidenceId,
+        now: now,
+      );
+      return const EvidenceReplacementResult.replaced();
+    } catch (error) {
+      return EvidenceReplacementResult.oldEvidenceRetained(
+        error.toString(),
+      );
+    }
   }
 
   Future<PendingCaptureRecoveryResult> recoverInterruptedCapture({

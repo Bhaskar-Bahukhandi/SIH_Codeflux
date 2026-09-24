@@ -187,6 +187,18 @@ class OfficerWorkspaceService {
     );
   }
 
+  Future<void> removeEvidence({
+    required String evidenceId,
+    DateTime? now,
+  }) async {
+    final officer = await _requireOfficerIdentity();
+    await workflow.removeEvidence(
+      officer: officer,
+      evidenceId: evidenceId,
+      now: now,
+    );
+  }
+
   Future<InspectionSubmissionPipeline> queueForReview({
     required String inspectionId,
     required Map<String, Object?> ruleContext,

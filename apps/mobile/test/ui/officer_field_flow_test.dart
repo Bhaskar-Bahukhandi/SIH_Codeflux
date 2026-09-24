@@ -386,4 +386,114 @@ void main() {
     await unmountApp(tester);
   });
 
+
+  testWidgets("Officer can replace then remove a draft package image", (
+    tester,
+  ) async {
+    final harness = (await tester.runAsync(FieldUiHarness.create))!;
+    addTearDown(() async {
+      await tester.runAsync(harness.dispose);
+    });
+
+    final created = (await tester.runAsync(
+      () => harness.workspace.createInspection(
+        productName: "Replaceable Product",
+        productIdentifier: "REP-001",
+      ),
+    ))!;
+    final inspectionId = created.inspection.id;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InspectionScreen(
+          inspectionId: inspectionId,
+          workspace: harness.workspace,
+          captureCoordinator: harness.captureCoordinator,
+        ),
+      ),
+    );
+    await pumpUntilFound(tester, find.text("Add image"));
+
+    final firstBytes = base64Decode(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+      "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    );
+    harness.acquisition.next = AcquiredEvidence(
+      bytes: firstBytes,
+      filename: "front-first.png",
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, "Add"));
+    await pumpUntilFound(tester, find.text("Which side are you capturing?"));
+    final frontOption = find.widgetWithText(ListTile, "Front");
+    await tester.ensureVisible(frontOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(frontOption);
+    await pumpUntilFound(tester, find.text("Take photo"));
+    final firstCameraOption = find.widgetWithText(ListTile, "Take photo");
+    await tester.ensureVisible(firstCameraOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(firstCameraOption);
+    await pumpUntilFound(
+      tester,
+      find.textContaining("image saved locally and queued"),
+    );
+
+    final originalEvidence = (await tester.runAsync(
+      () => harness.workspace.listEvidence(inspectionId),
+    ))!;
+    expect(originalEvidence.length, 1);
+    final originalId = originalEvidence.single.id;
+
+    harness.acquisition.next = AcquiredEvidence(
+      bytes: firstBytes,
+      filename: "front-replacement.png",
+    );
+
+    final replaceButton = find.byTooltip("Replace image");
+    await tester.ensureVisible(replaceButton);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(replaceButton);
+    await pumpUntilFound(tester, find.text("Take photo"));
+    final replacementCameraOption =
+        find.widgetWithText(ListTile, "Take photo");
+    await tester.ensureVisible(replacementCameraOption);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(replacementCameraOption);
+    await pumpUntilFound(
+      tester,
+      find.textContaining("image replaced successfully"),
+    );
+
+    final replacedEvidence = (await tester.runAsync(
+      () => harness.workspace.listEvidence(inspectionId),
+    ))!;
+    expect(replacedEvidence.length, 1);
+    expect(replacedEvidence.single.id, isNot(originalId));
+
+    final removeButton = find.byTooltip("Remove image");
+    await tester.ensureVisible(removeButton);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(removeButton);
+    await pumpUntilFound(tester, find.text("Remove package image?"));
+    await tester.tap(find.widgetWithText(FilledButton, "Remove"));
+    await pumpUntilFound(
+      tester,
+      find.text(
+        "No package images saved yet. Capture multiple views "
+        "so declarations can be checked against the available evidence.",
+      ),
+    );
+
+    expect(
+      await tester.runAsync(
+        () => harness.workspace.listEvidence(inspectionId),
+      ),
+      isEmpty,
+    );
+    expect(tester.takeException(), isNull);
+
+    await unmountApp(tester);
+  });
+
 }

@@ -406,4 +406,164 @@ void main() {
     );
   });
 
+
+  test("removing unsynced evidence cancels its pipeline and local bytes", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Blurred Product",
+    );
+    final evidence = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[11, 22, 33, 44]),
+      originalFilename: "blurred.jpg",
+    );
+    final localFile = File(evidence.evidence.localPath);
+    expect(await localFile.exists(), isTrue);
+    expect(
+      (await queue.listForInspection(created.inspection.id)).length,
+      5,
+    );
+
+    await workflow.removeEvidence(
+      officer: officer(),
+      evidenceId: evidence.evidence.id,
+    );
+
+    expect(
+      await drafts.listEvidenceForInspection(created.inspection.id),
+      isEmpty,
+    );
+    expect(await localFile.exists(), isFalse);
+
+    final operations = await queue.listForInspection(created.inspection.id);
+    expect(operations.length, 1);
+    expect(operations.single.type, SyncOperationType.createInspection);
+  });
+
+  test("removing uploaded evidence queues audited remote discard", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Uploaded Blur",
+      now: DateTime.utc(2026, 9, 24, 10),
+    );
+    final evidence = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[5, 6, 7, 8]),
+      originalFilename: "front.jpg",
+      now: DateTime.utc(2026, 9, 24, 10, 1),
+    );
+
+    final createClaim = await queue.claimNextReady(
+      DateTime.utc(2026, 9, 24, 10, 2),
+    );
+    expect(createClaim!.type, SyncOperationType.createInspection);
+    await queue.markSynced(
+      createClaim.id,
+      remoteResourceId: created.inspection.id,
+      now: DateTime.utc(2026, 9, 24, 10, 2, 1),
+    );
+
+    final uploadClaim = await queue.claimNextReady(
+      DateTime.utc(2026, 9, 24, 10, 3),
+    );
+    expect(uploadClaim!.type, SyncOperationType.uploadCapture);
+    await queue.markSynced(
+      uploadClaim.id,
+      remoteResourceId: evidence.evidence.id,
+      now: DateTime.utc(2026, 9, 24, 10, 3, 1),
+    );
+
+    await workflow.removeEvidence(
+      officer: officer(),
+      evidenceId: evidence.evidence.id,
+      now: DateTime.utc(2026, 9, 24, 10, 4),
+    );
+
+    expect(
+      await drafts.listEvidenceForInspection(created.inspection.id),
+      isEmpty,
+    );
+    expect(await File(evidence.evidence.localPath).exists(), isTrue);
+
+    final operations = await queue.listForInspection(created.inspection.id);
+    expect(
+      operations.map((operation) => operation.type).toSet(),
+      <SyncOperationType>{
+        SyncOperationType.createInspection,
+        SyncOperationType.uploadCapture,
+        SyncOperationType.discardCapture,
+      },
+    );
+    final discard = operations.singleWhere(
+      (operation) => operation.type == SyncOperationType.discardCapture,
+    );
+    expect(discard.resourceId, evidence.evidence.id);
+    expect(discard.dependencyIds, <String>[uploadClaim.id]);
+
+    final replacement = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[8, 7, 6, 5]),
+      originalFilename: "replacement.jpg",
+      now: DateTime.utc(2026, 9, 24, 10, 5),
+    );
+    final submission = await workflow.queueForReview(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      ruleContext: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+      now: DateTime.utc(2026, 9, 24, 10, 6),
+    );
+    expect(
+      submission.extractionOperation.dependencyIds.toSet(),
+      containsAll(<String>[
+        replacement.ocrOperation.id,
+        discard.id,
+      ]),
+    );
+  });
+
+  test("evidence removal is blocked after preliminary review is queued", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Review Locked",
+    );
+    final evidence = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[1, 4, 9, 16]),
+      originalFilename: "front.jpg",
+    );
+    await workflow.queueForReview(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      ruleContext: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+    );
+
+    await expectLater(
+      workflow.removeEvidence(
+        officer: officer(),
+        evidenceId: evidence.evidence.id,
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(
+      (await drafts.listEvidenceForInspection(created.inspection.id)).length,
+      1,
+    );
+  });
+
 }

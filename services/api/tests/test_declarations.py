@@ -562,3 +562,56 @@ def test_empty_ocr_run_produces_technical_not_detected_not_error(
     assert payload["observations"] == []
     assert summary(payload, "mrp")["status"] == "not_detected"
     assert summary(payload, "net_quantity")["status"] == "not_detected"
+
+
+def test_discarded_capture_is_excluded_from_current_declaration_sources(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+
+    front, front_derivative = upload_and_process(
+        client, inspection["id"], headers, "front"
+    )
+    back, back_derivative = upload_and_process(
+        client, inspection["id"], headers, "back"
+    )
+    seed_ocr(
+        db_session,
+        capture_id=front["id"],
+        derivative=front_derivative,
+        texts=["MRP Rs. 40.00"],
+    )
+    seed_ocr(
+        db_session,
+        capture_id=back["id"],
+        derivative=back_derivative,
+        texts=["MRP Rs. 50.00"],
+    )
+
+    discarded = client.post(
+        (
+            f"/api/v1/inspections/{inspection['id']}/captures/"
+            f"{front['id']}/discard"
+        ),
+        headers=headers,
+    )
+    assert discarded.status_code == 200
+    assert discarded.json()["discarded_at"] is not None
+
+    response = client.post(
+        f"/api/v1/inspections/{inspection['id']}/declarations/extract",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["inspection_capture_count"] == 1
+    assert payload["run"]["source_capture_count"] == 1
+    assert payload["run"]["source_capture_ids"] == [back["id"]]
+    assert payload["run"]["skipped_sources"] == []
+    assert summary(payload, "mrp")["canonical_value"]["amount"] == "50.00"
