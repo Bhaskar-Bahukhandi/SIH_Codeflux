@@ -333,6 +333,9 @@ class LocalDraftRepository {
       sizeBytes: row["size_bytes"]! as int,
       syncState: SyncState.fromDb(row["sync_state"]! as String),
       remoteId: row["remote_id"] as String?,
+      discardedAt: row["discarded_at"] == null
+          ? null
+          : DateTime.parse(row["discarded_at"]! as String).toUtc(),
       createdAt: DateTime.parse(row["created_at"]! as String).toUtc(),
       updatedAt: DateTime.parse(row["updated_at"]! as String).toUtc(),
     );
