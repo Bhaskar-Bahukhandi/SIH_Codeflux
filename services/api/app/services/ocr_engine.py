@@ -103,7 +103,10 @@ class PaddleOcrEngine:
                 )
             )
         except Exception as exc:
-            raise OcrInferenceFailed("PaddleOCR inference failed.") from exc
+            raise OcrInferenceFailed(
+                "PaddleOCR inference failed: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
         detections: list[OcrDetection] = []
         for result in results:
