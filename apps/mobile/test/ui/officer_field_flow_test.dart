@@ -334,4 +334,56 @@ void main() {
 
     await unmountApp(tester);
   });
+
+  testWidgets("new inspection dialog survives repeated route teardown", (
+    tester,
+  ) async {
+    final harness = (await tester.runAsync(FieldUiHarness.create))!;
+    addTearDown(() async {
+      await tester.runAsync(harness.dispose);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceScreen(
+          officer: harness.officer,
+          workspace: harness.workspace,
+          captureCoordinator: harness.captureCoordinator,
+          onSignedOut: () {},
+        ),
+      ),
+    );
+    await pumpUntilFound(tester, find.text("Widget Officer"));
+
+    for (var attempt = 0; attempt < 2; attempt += 1) {
+      await tester.tap(find.text("New inspection"));
+      await pumpUntilFound(tester, find.byType(TextFormField));
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), "Cancelled Product $attempt");
+      await tester.enterText(fields.at(1), "CANCEL-$attempt");
+      await tester.tap(find.widgetWithText(TextButton, "Cancel"));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.takeException(), isNull);
+      expect(find.byType(TextFormField), findsNothing);
+    }
+
+    await tester.tap(find.text("New inspection"));
+    await pumpUntilFound(tester, find.byType(TextFormField));
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), "Lifecycle Product");
+    await tester.enterText(fields.at(1), "LIFE-001");
+    await tester.tap(find.widgetWithText(FilledButton, "Create"));
+    await pumpUntilFound(tester, find.text("Add image"));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.takeException(), isNull);
+
+    await tester.pageBack();
+    await pumpUntilFound(tester, find.text("My inspections"));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.takeException(), isNull);
+    expect(find.text("Lifecycle Product"), findsOneWidget);
+
+    await unmountApp(tester);
+  });
+
 }
