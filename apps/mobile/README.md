@@ -34,7 +34,7 @@ Implemented on the Phase 7 branch:
 
 The Phase 7 branch now includes the first functional Officer UI shell: login, local inspection list, inspection detail, camera/gallery package-image acquisition, applicability-context entry, queue-for-review, sync-now, interrupted-capture recovery messaging, and sign-out/re-authentication handling. Native Android/iOS runner projects are still intentionally ungenerated until the guarded Flutter platform bootstrap can execute. Background scheduling and finalization/report synchronization are **not** represented as implemented yet.
 
-The committed scenarios include a two-capture offline/restart/reconnect test and a full queued pre-finalization pipeline through submission. They use in-process mock HTTP server state to validate sync mechanics and are not substitutes for an executed Flutter-to-FastAPI integration test or field-device validation.
+The committed scenarios include a two-capture offline/restart/reconnect test and a full queued pre-finalization pipeline through submission. The deterministic scenarios use mock HTTP state for failure/reconciliation mechanics. A separate dedicated workflow now runs the real Flutter auth/sync clients against a live FastAPI process, including local SQLite restart, upload, preprocessing, geometry, PP-OCRv5, declaration extraction, rule evaluation, submission and stable-ID replay. That live CI test is not a substitute for physical-device field validation.
 
 The current slice is infrastructure for the Officer field workflow. It must be validated before UI code is allowed to present any operation as synchronized.
 
@@ -56,7 +56,7 @@ Run from `apps/mobile`:
     flutter analyze
     flutter test
 
-The repository workflow `.github/workflows/mobile-offline-tests.yml` runs the same analysis/test gate on Flutter 3.47.5.
+The repository workflow `.github/workflows/mobile-offline-tests.yml` runs the focused mobile regression gate on Flutter 3.47.5. The separate `.github/workflows/live-mobile-fastapi-integration.yml` workflow starts an isolated real FastAPI backend and exercises the mobile HTTP synchronization path end to end.
 
 GitHub-hosted runner allocation has been restored. Mobile validation now depends on real `flutter pub get`, `flutter analyze`, and `flutter test` results.
 

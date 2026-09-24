@@ -1,0 +1,146 @@
+name: Live Mobile FastAPI Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "services/api/**"
+      - ".github/workflows/live-mobile-fastapi-integration.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-mobile-fastapi:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      APP_ENV: test
+      JWT_SECRET: live-mobile-fastapi-integration-secret
+      DATABASE_URL: sqlite+pysqlite:///./live-mobile-integration.sqlite
+      MEDIA_ROOT: ./live_mobile_media
+      OCR_INFERENCE_ENGINE: paddle
+      OCR_LANGUAGE: en
+      OCR_MODEL_VERSION: PP-OCRv5
+      OCR_DEVICE: cpu
+      OCR_MIN_CONFIDENCE: "0.0"
+      OCR_ENABLE_MKLDNN: "false"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      CODEFLUX_INTEGRATION_API_BASE: http://127.0.0.1:8000/
+      CODEFLUX_INTEGRATION_OFFICER_EMAIL: integration-officer@example.test
+      CODEFLUX_INTEGRATION_OFFICER_PASSWORD: IntegrationPassword123!
+      CODEFLUX_INTEGRATION_IMAGE: /tmp/codeflux-integration.jpg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+
+      - name: Install API and pinned OCR runtime
+        working-directory: services/api
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,ocr]"
+
+      - name: Create isolated API database
+        working-directory: services/api
+        run: |
+          alembic upgrade head
+          python -m app.cli.seed_integration_officer
+
+      - name: Generate deterministic package-image fixture
+        working-directory: services/api
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+
+          image = Image.new("RGB", (1000, 640), (205, 218, 200))
+          draw = ImageDraw.Draw(image)
+          draw.rounded_rectangle(
+              (80, 80, 920, 560),
+              radius=32,
+              fill=(246, 241, 218),
+              outline=(32, 60, 38),
+              width=8,
+          )
+          try:
+              title = ImageFont.truetype(
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                  58,
+              )
+              body = ImageFont.truetype(
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                  42,
+              )
+          except OSError:
+              title = ImageFont.load_default()
+              body = ImageFont.load_default()
+
+          draw.text((145, 145), "CODEFLUX TEST PACK", font=title, fill=(28, 43, 30))
+          draw.text((145, 285), "NET QUANTITY: 200 g", font=body, fill=(25, 25, 25))
+          draw.text((145, 365), "MRP: Rs. 50.00", font=body, fill=(25, 25, 25))
+          draw.text((145, 445), "INTEGRATION EVIDENCE", font=body, fill=(25, 25, 25))
+          image.save("/tmp/codeflux-integration.jpg", format="JPEG", quality=94)
+          PY
+
+      - name: Start live FastAPI server
+        working-directory: services/api
+        run: |
+          python -m uvicorn app.main:app             --host 127.0.0.1             --port 8000             > /tmp/codeflux-live-api.log 2>&1 &
+          echo $! > /tmp/codeflux-live-api.pid
+
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8000/health/ready > /dev/null; then
+              echo "FastAPI is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/codeflux-live-api.pid)" 2>/dev/null; then
+              cat /tmp/codeflux-live-api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "FastAPI did not become ready."
+          cat /tmp/codeflux-live-api.log
+          exit 1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Run live Flutter-to-FastAPI integration
+        working-directory: apps/mobile
+        run: |
+          timeout --signal=TERM 20m flutter test             test/integration/live_fastapi_sync_test.dart             --reporter expanded
+
+      - name: Verify API server stayed healthy
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/health/ready
+          kill -0 "$(cat /tmp/codeflux-live-api.pid)"
+
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-mobile-fastapi-integration
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            /tmp/codeflux-live-api.log
+            services/api/live-mobile-integration.sqlite
+            services/api/live_mobile_media

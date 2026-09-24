@@ -199,6 +199,74 @@ def test_client_capture_id_replay_is_exactly_once_and_preserves_original_evidenc
     assert content.content == original
 
 
+
+def test_capture_exact_replay_remains_safe_after_submission(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers).json()
+    capture_id = str(uuid4())
+    original = image_bytes((90, 120, 70))
+
+    def upload(data, *, client_capture_id=capture_id):
+        return client.post(
+            f"/api/v1/inspections/{inspection['id']}/captures",
+            headers=headers,
+            data={
+                "view_type": "front",
+                "capture_id": client_capture_id,
+            },
+            files={
+                "file": (
+                    "front.jpg",
+                    data,
+                    "application/octet-stream",
+                )
+            },
+        )
+
+    first = upload(original)
+    assert first.status_code == 201
+
+    submitted = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=headers,
+    )
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "pending_review"
+
+    replay = upload(original)
+    assert replay.status_code == 201
+    assert replay.json()["id"] == capture_id
+    assert db_session.scalar(select(func.count(Capture.id))) == 1
+    assert (
+        audit_count(
+            db_session,
+            inspection["id"],
+            AuditEventType.CAPTURE_UPLOADED,
+        )
+        == 1
+    )
+
+    changed_bytes = image_bytes((10, 30, 50))
+    conflicting_replay = upload(changed_bytes)
+    assert conflicting_replay.status_code == 409
+    assert (
+        conflicting_replay.json()["error"]["code"]
+        == "client_resource_id_conflict"
+    )
+
+    new_capture = upload(
+        original,
+        client_capture_id=str(uuid4()),
+    )
+    assert new_capture.status_code == 409
+    assert new_capture.json()["error"]["code"] == "inspection_not_editable"
+
 def test_capture_replay_does_not_claim_success_when_remote_evidence_is_missing(
     client,
     db_session,

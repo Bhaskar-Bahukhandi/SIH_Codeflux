@@ -97,7 +97,6 @@ async def upload_capture(
     storage: LocalMediaStorage = Depends(get_media_storage),
 ) -> Capture:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
-    require_draft(inspection)
 
     data = await file.read(settings.max_capture_bytes + 1)
     if len(data) > settings.max_capture_bytes:
@@ -133,6 +132,10 @@ async def upload_capture(
 
             _verify_replayed_capture_storage(storage, existing)
             return existing
+
+    # Exact client-ID replay must remain safe even if the inspection lifecycle
+    # advanced after the original upload. New evidence is still draft-only.
+    require_draft(inspection)
 
     storage_object_id = (
         stable_capture_id if capture_id is None else str(uuid4())

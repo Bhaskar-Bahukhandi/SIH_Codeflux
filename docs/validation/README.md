@@ -61,10 +61,30 @@ Expected local input: evaluation/phase4/manifest.json with reviewed declaration 
 
 ## Runtime/device gates
 
-These cannot be honestly replaced by mocked HTTP or unit tests:
+### Production-like Flutter-to-FastAPI integration
+
+**PASS** for the checked-in Linux CI process/network path.
+
+The dedicated live integration workflow now:
+
+- migrates an isolated backend database;
+- starts a real FastAPI/uvicorn process;
+- authenticates through the real Flutter Officer auth client;
+- creates inspection/evidence/queue state locally;
+- closes and reopens the mobile SQLite database before reconnect;
+- drains the real HTTP sync adapter through inspection creation, capture upload, preprocessing, geometry, PP-OCRv5, declaration extraction, rule evaluation and submission;
+- replays stable inspection/capture IDs and verifies no duplicate remote resources;
+- verifies the FastAPI readiness endpoint after the run.
+
+The validation also exposed and fixed a lifecycle replay bug: an exact capture retry after submission had previously been rejected before idempotency reconciliation. Exact replay now returns the existing capture, while changed/new evidence remains blocked according to the inspection lifecycle.
+
+This proves the repository's Flutter HTTP adapter can synchronize against the real FastAPI implementation in CI. It is not physical-device evidence.
+
+### Still external/runtime-dependent
+
+These remain **EXTERNAL EVIDENCE REQUIRED**:
 
 - physical-device offline -> restart -> reconnect -> replay validation;
-- production-like Flutter-to-FastAPI run;
 - mobile OCR/on-device adapter feasibility spike;
 - calibrated physical font-size measurement validation.
 
@@ -74,7 +94,7 @@ The hosting/deployment provider also remains a recorded open decision.
 
 A green System Validation workflow means the checked-in automated prototype paths are regression-clean on the tested toolchains.
 
-It does **not** mean real-package OCR/extraction accuracy, physical-device offline behavior, font-size measurement or production readiness has been proven.
+It does **not** mean real-package OCR/extraction accuracy, physical-device offline behavior, font-size measurement or production readiness has been proven. The live Flutter-to-FastAPI CI gate is process/network integration evidence, not a physical handset validation.
 
 ## Exit rule
 
