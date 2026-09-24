@@ -2,7 +2,7 @@
 
 Issue: #43
 
-Status: repository deployment contract under validation
+Status: repository deployment contract validated; live Railway provisioning pending
 
 ## Decision
 
@@ -105,9 +105,22 @@ Do not consider the demo deployment valid until all of the following are observe
 8. The database record remains present after redeploy/restart.
 9. No credentials or test/demo secrets appear in repository files or public logs.
 
+## Repository validation result
+
+The dedicated SIH Demo Container workflow passed on this deployment contract. The executed image:
+
+- built successfully with the React dashboard, API and prefetched PP-OCRv5 artifacts;
+- applied Alembic migrations at startup;
+- reached `/health/ready`;
+- served the real dashboard from `/`;
+- kept API/health routes available on the same origin;
+- contained PaddleOCR 3.7.0 and PaddlePaddle 3.2.2.
+
+The full API regression suite on the same PR contains 145 passing tests.
+
 ## Evidence boundaries
 
-A green repository container smoke test proves:
+The green repository container smoke test proves:
 
 - the combined image builds;
 - Alembic migrations execute in the image;
