@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError, getCurrentUser, listInspections, login } from "./api";
+import InspectionDetail from "./InspectionDetail";
 import {
   clearSession,
   loadSession,
@@ -41,6 +42,15 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(null);
+
+  const expireSession = useCallback(() => {
+    clearSession();
+    setSession(null);
+    setSelectedInspectionId(null);
+    setLoadError("Your session expired. Sign in again.");
+    setLoadState("idle");
+  }, []);
 
   useEffect(() => {
     if (!session) {
@@ -62,10 +72,7 @@ export default function App() {
       .catch((error: unknown) => {
         if (!active) return;
         if (error instanceof ApiError && error.status === 401) {
-          clearSession();
-          setSession(null);
-          setLoadError("Your session expired. Sign in again.");
-          setLoadState("idle");
+          expireSession();
           return;
         }
         setLoadError(errorMessage(error));
@@ -75,7 +82,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [expireSession, session]);
 
   const visibleInspections = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -99,6 +106,7 @@ export default function App() {
     setSession(nextSession);
     setQuery("");
     setStatusFilter("all");
+    setSelectedInspectionId(null);
   }
 
   function signOut() {
@@ -107,6 +115,7 @@ export default function App() {
     setInspections([]);
     setQuery("");
     setStatusFilter("all");
+    setSelectedInspectionId(null);
     setLoadError("");
   }
 
@@ -133,111 +142,129 @@ export default function App() {
         </div>
       </header>
 
-      <section className="register" aria-labelledby="inspection-heading">
-        <div className="register-heading">
-          <div>
-            <p className="section-kicker">Persisted backend records</p>
-            <h2 id="inspection-heading">Inspections</h2>
+      {selectedInspectionId ? (
+        <InspectionDetail
+          inspectionId={selectedInspectionId}
+          accessToken={session.accessToken}
+          onBack={() => setSelectedInspectionId(null)}
+          onUnauthorized={expireSession}
+        />
+      ) : (
+        <section className="register" aria-labelledby="inspection-heading">
+          <div className="register-heading">
+            <div>
+              <p className="section-kicker">Persisted backend records</p>
+              <h2 id="inspection-heading">Inspections</h2>
+            </div>
+            {loadState === "ready" && (
+              <p className="record-count" aria-live="polite">
+                {visibleInspections.length} of {inspections.length} shown
+              </p>
+            )}
           </div>
-          {loadState === "ready" && (
-            <p className="record-count" aria-live="polite">
-              {visibleInspections.length} of {inspections.length} shown
-            </p>
+
+          <div className="filters" aria-label="Inspection filters">
+            <label>
+              <span>Search</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Product, identifier, or inspection ID"
+              />
+            </label>
+            <label>
+              <span>Status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="pending_review">Pending review</option>
+                <option value="finalized">Finalized</option>
+              </select>
+            </label>
+          </div>
+
+          {loadState === "loading" && (
+            <div className="state-panel" role="status">
+              Loading persisted inspections…
+            </div>
           )}
-        </div>
 
-        <div className="filters" aria-label="Inspection filters">
-          <label>
-            <span>Search</span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Product, identifier, or inspection ID"
-            />
-          </label>
-          <label>
-            <span>Status</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-            >
-              <option value="all">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="pending_review">Pending review</option>
-              <option value="finalized">Finalized</option>
-            </select>
-          </label>
-        </div>
+          {loadState === "error" && (
+            <div className="state-panel error-panel" role="alert">
+              <strong>Could not load inspections.</strong>
+              <p>{loadError}</p>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setSession({ ...session })}
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
-        {loadState === "loading" && (
-          <div className="state-panel" role="status">
-            Loading persisted inspections…
-          </div>
-        )}
+          {loadState === "ready" && inspections.length === 0 && (
+            <div className="state-panel">
+              <strong>No persisted inspections yet.</strong>
+              <p>New field records will appear here after they are synchronized to the API.</p>
+            </div>
+          )}
 
-        {loadState === "error" && (
-          <div className="state-panel error-panel" role="alert">
-            <strong>Could not load inspections.</strong>
-            <p>{loadError}</p>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setSession({ ...session })}
-            >
-              Retry
-            </button>
-          </div>
-        )}
+          {loadState === "ready" && inspections.length > 0 && visibleInspections.length === 0 && (
+            <div className="state-panel">
+              <strong>No inspections match these filters.</strong>
+              <p>Clear the search text or choose another status.</p>
+            </div>
+          )}
 
-        {loadState === "ready" && inspections.length === 0 && (
-          <div className="state-panel">
-            <strong>No persisted inspections yet.</strong>
-            <p>New field records will appear here after they are synchronized to the API.</p>
-          </div>
-        )}
-
-        {loadState === "ready" && inspections.length > 0 && visibleInspections.length === 0 && (
-          <div className="state-panel">
-            <strong>No inspections match these filters.</strong>
-            <p>Clear the search text or choose another status.</p>
-          </div>
-        )}
-
-        {loadState === "ready" && visibleInspections.length > 0 && (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Product</th>
-                  <th scope="col">Identifier</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Created</th>
-                  <th scope="col">Inspection ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleInspections.map((inspection) => (
-                  <tr key={inspection.id}>
-                    <td className="product-cell">{inspection.product_name}</td>
-                    <td>{inspection.product_identifier ?? "—"}</td>
-                    <td>
-                      <span className={`status status-${inspection.status}`}>
-                        {statusLabels[inspection.status]}
-                      </span>
-                    </td>
-                    <td>{formatDate(inspection.created_at)}</td>
-                    <td className="id-cell">{inspection.id}</td>
+          {loadState === "ready" && visibleInspections.length > 0 && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col">Identifier</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">Inspection ID</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {visibleInspections.map((inspection) => (
+                    <tr key={inspection.id}>
+                      <td className="product-cell">
+                        <button
+                          className="inspection-link"
+                          type="button"
+                          onClick={() => setSelectedInspectionId(inspection.id)}
+                          aria-label={`Open inspection ${inspection.product_name}`}
+                        >
+                          {inspection.product_name}
+                        </button>
+                      </td>
+                      <td>{inspection.product_identifier ?? "—"}</td>
+                      <td>
+                        <span className={`status status-${inspection.status}`}>
+                          {statusLabels[inspection.status]}
+                        </span>
+                      </td>
+                      <td>{formatDate(inspection.created_at)}</td>
+                      <td className="id-cell">{inspection.id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       <footer>
-        Phase 8A shows inspection state from the CODEFLUX API only. Evidence detail and report retrieval are intentionally deferred to Phase 8B.
+        Dashboard records come from persisted CODEFLUX API data. Legal evaluation semantics remain on the backend.
       </footer>
     </main>
   );

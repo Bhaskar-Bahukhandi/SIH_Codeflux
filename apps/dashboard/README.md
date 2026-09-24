@@ -2,27 +2,46 @@
 
 Technology: React + TypeScript.
 
-## Phase 8A scope
+## Phase 8 scope implemented so far
 
-The first dashboard slice is intentionally limited to:
+### 8A — foundation, authentication and inspection register
 
 - Supervisor/Admin sign-in using the existing CODEFLUX authentication API;
 - browser session persistence for the prototype using session storage and server-provided expiry;
-- persisted inspection list from the backend;
+- persisted inspection list;
 - deterministic product/identifier/inspection-ID search;
 - inspection-status filtering;
-- explicit loading, empty, filter-empty and error states;
-- real API data only.
+- explicit loading, empty, filter-empty and error states.
 
-The dashboard does not present static/demo statistics as live operational data and does not duplicate Legal Metrology rule logic.
+### 8B — inspection evidence detail
 
-Inspection evidence/detail views, Officer review details, finalization/report retrieval and dashboard monitoring polish remain later Phase 8 slices.
+The current branch adds read-oriented inspection detail using existing persisted backend data:
 
-## Authorization boundary
+- inspection metadata;
+- package-capture metadata;
+- latest quality, geometry and OCR state per capture;
+- OCR text evidence;
+- latest declaration fusion summaries;
+- latest preliminary rule-evaluation results;
+- latest Officer review decision for each rule result;
+- finalization metadata;
+- authenticated evidence-backed PDF report download when finalized.
 
-The dashboard verifies the authenticated identity through `GET /api/v1/auth/me` and only opens the UI for `supervisor` or `admin` roles.
+Missing latest quality/geometry/OCR/declaration/rule/finalization records are treated as absent evidence, not invented state.
 
-This client-side role gate is a presentation boundary, not a replacement for backend authorization. API endpoints remain authoritative.
+## Safety and authorization boundaries
+
+The dashboard verifies identity through `GET /api/v1/auth/me` and only opens for `supervisor` or `admin` roles.
+
+Client-side role gating is a presentation boundary, not a replacement for backend authorization. API endpoints remain authoritative.
+
+The dashboard:
+
+- does not present static/demo statistics as live operational data;
+- does not duplicate Legal Metrology rule logic;
+- does not create Supervisor overrides;
+- does not convert missing OCR/declaration evidence into a violation;
+- does not expose penalty or statutory notice workflows.
 
 ## API configuration
 
@@ -34,8 +53,6 @@ Set `CODEFLUX_API_TARGET` when the API is not running at the local development d
 CODEFLUX_API_TARGET=http://127.0.0.1:8000 npm run dev
 ```
 
-No production or demo server address is hard-coded into application source.
-
 ## Local validation
 
 From `apps/dashboard`:
@@ -46,4 +63,4 @@ npm test
 npm run build
 ```
 
-Phase 8A is not complete unless dashboard tests/build and the existing API regression suite pass in GitHub Actions.
+Dashboard changes are also gated by the existing API migration chain and regression suite in GitHub Actions.
