@@ -36,6 +36,8 @@ class CodefluxApiSyncAdapter
         _executeDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _executeUploadCapture(operation),
+      SyncOperationType.discardCapture =>
+        _executeDiscardCapture(operation),
       SyncOperationType.processCapture =>
         _executeProcessCapture(operation),
       SyncOperationType.analyzeGeometry =>
@@ -71,6 +73,8 @@ class CodefluxApiSyncAdapter
         _reconcileDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _reconcileCapture(operation),
+      SyncOperationType.discardCapture =>
+        _reconcileDiscardCapture(operation),
       SyncOperationType.processCapture =>
         _reconcileProcessCapture(operation),
       SyncOperationType.analyzeGeometry =>
@@ -307,6 +311,46 @@ class CodefluxApiSyncAdapter
     }
 
     return SyncExecutionSuccess(remoteResourceId: remoteId);
+  }
+
+  Future<SyncExecutionSuccess> _executeDiscardCapture(
+    SyncOperation operation,
+  ) async {
+    final captureId = _requiredString(operation.payload, "capture_id");
+    if (captureId != operation.resourceId) {
+      throw StateError(
+        "Capture discard payload ID does not match the queued resource ID.",
+      );
+    }
+
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/captures/" +
+            Uri.encodeComponent(captureId) +
+            "/discard",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "capture discard",
+    );
+    if (decoded["id"]?.toString() != captureId ||
+        decoded["discarded_at"] == null) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server capture discard response does not confirm the evidence was removed.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: captureId);
   }
 
   Future<SyncExecutionSuccess> _executeProcessCapture(
@@ -829,6 +873,39 @@ class CodefluxApiSyncAdapter
     return ReconciliationResult.applied(
       remoteResourceId: operation.resourceId,
     );
+  }
+
+  Future<ReconciliationResult> _reconcileDiscardCapture(
+    SyncOperation operation,
+  ) async {
+    final captureId = _requiredString(operation.payload, "capture_id");
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/captures/" +
+          Uri.encodeComponent(captureId),
+    );
+
+    if (response.statusCode == 404) {
+      return ReconciliationResult.applied(
+        remoteResourceId: captureId,
+      );
+    }
+    _requireSuccess(response);
+
+    final remote = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "capture discard",
+    );
+    if (remote["id"]?.toString() != captureId) {
+      return const ReconciliationResult.unresolved();
+    }
+    if (remote["discarded_at"] != null) {
+      return ReconciliationResult.applied(
+        remoteResourceId: captureId,
+      );
+    }
+    return const ReconciliationResult.notApplied();
   }
 
   Future<ReconciliationResult> _reconcileProcessCapture(
