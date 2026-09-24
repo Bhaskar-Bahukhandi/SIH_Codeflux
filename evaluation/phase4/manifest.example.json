@@ -35,6 +35,21 @@
       "notes": "Replace with an actual reviewed OCR case before making real-package claims."
     },
     {
+      "case_id": "web-reference-001",
+      "dataset_type": "web_reference",
+      "block_source": "actual_ocr",
+      "source_page_url": "https://example.com/products/package",
+      "ocr_blocks": [
+        {
+          "block_id": "b0",
+          "text": "NET QUANTITY: 200 g",
+          "confidence": 0.96
+        }
+      ],
+      "expected_declarations": null,
+      "notes": "Unlabeled observation: predictions are visible but excluded from metrics."
+    },
+    {
       "case_id": "synthetic-001",
       "dataset_type": "synthetic",
       "block_source": "synthetic",
@@ -46,7 +61,7 @@
         }
       ],
       "expected_declarations": [],
-      "notes": "Regression-only negative case."
+      "notes": "Regression-only labeled negative case."
     }
   ]
 }
