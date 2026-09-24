@@ -1,3 +1,5 @@
+import "dart:io";
+
 import "package:flutter_test/flutter_test.dart";
 
 import "package:codeflux_mobile/ocr/mlkit_on_device_ocr_adapter.dart";
