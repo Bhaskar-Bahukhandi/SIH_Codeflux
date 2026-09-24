@@ -9,6 +9,16 @@ import "../sync/failure_classifier.dart";
 import "../sync/retry_policy.dart";
 import "offline_database.dart";
 
+class EvidenceDiscardQueuePlan {
+  const EvidenceDiscardQueuePlan({
+    required this.remoteCaptureExists,
+    this.uploadOperationId,
+  });
+
+  final bool remoteCaptureExists;
+  final String? uploadOperationId;
+}
+
 enum _DependencyDisposition {
   ready,
   waiting,
@@ -151,6 +161,63 @@ class SyncQueueRepository {
         );
       }
     });
+  }
+
+  Future<EvidenceDiscardQueuePlan> cancelPendingWorkForEvidenceDiscard({
+    required String inspectionId,
+    required String evidenceId,
+  }) async {
+    final operations = await listForInspection(inspectionId);
+    final captureOperations = operations
+        .where((operation) => _targetsCapture(operation, evidenceId))
+        .toList(growable: false);
+
+    final uploads = captureOperations
+        .where(
+          (operation) => operation.type == SyncOperationType.uploadCapture,
+        )
+        .toList(growable: false);
+    if (uploads.length != 1) {
+      throw StateError(
+        "Expected exactly one upload operation for the package image.",
+      );
+    }
+
+    final upload = uploads.single;
+    if (captureOperations.any(
+      (operation) => operation.state == SyncState.syncing,
+    )) {
+      throw StateError(
+        "Wait for the current synchronization attempt to finish before removing this image.",
+      );
+    }
+
+    final remoteCaptureExists = upload.state == SyncState.synced;
+    if (!remoteCaptureExists && upload.state != SyncState.queued) {
+      throw StateError(
+        "This image has an uncertain server upload state. Sync it again before removing it.",
+      );
+    }
+
+    final deletableIds = captureOperations
+        .where((operation) => operation.state != SyncState.synced)
+        .map((operation) => operation.id)
+        .toList(growable: false);
+
+    await offlineDatabase.database.transaction((txn) async {
+      for (final id in deletableIds) {
+        await txn.delete(
+          "sync_operations",
+          where: "id = ?",
+          whereArgs: <Object?>[id],
+        );
+      }
+    });
+
+    return EvidenceDiscardQueuePlan(
+      remoteCaptureExists: remoteCaptureExists,
+      uploadOperationId: remoteCaptureExists ? upload.id : null,
+    );
   }
 
   Future<SyncOperation?> getById(String id) async {
@@ -732,6 +799,23 @@ class SyncQueueRepository {
         "Queued resource projection update was not exactly one row.",
       );
     }
+  }
+
+  bool _targetsCapture(
+    SyncOperation operation,
+    String captureId,
+  ) {
+    if (operation.type == SyncOperationType.uploadCapture ||
+        operation.type == SyncOperationType.discardCapture) {
+      return operation.resourceId == captureId;
+    }
+    return switch (operation.type) {
+      SyncOperationType.processCapture ||
+      SyncOperationType.analyzeGeometry ||
+      SyncOperationType.runOcr =>
+        operation.payload["capture_id"] == captureId,
+      _ => false,
+    };
   }
 
   bool _sameImmutableOperation(
