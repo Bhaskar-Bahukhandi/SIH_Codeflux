@@ -146,3 +146,43 @@ def test_fusion_preserves_conflicts_and_not_detected_state():
     assert quantity.canonical_value is None
     assert quantity.candidate_values == []
     assert quantity.observation_count == 0
+
+
+def test_additive_promotional_net_quantity_uses_explicit_total():
+    results = extract_declarations(
+        [
+            block("label", 0, "BISCUITS NET WEIGHT", 0.98),
+            block("value", 1, "40g+10g EXTRA# = 50g", 0.97),
+        ]
+    )
+
+    quantity = next(
+        result
+        for result in results
+        if result.declaration_type is DeclarationType.NET_QUANTITY
+    )
+    assert quantity.normalized_value == {
+        "value": "50",
+        "unit": "g",
+    }
+    assert quantity.block_ids == ["label", "value"]
+    assert quantity.extractor_method == "net_quantity_additive_total_v1"
+
+
+def test_additive_total_requires_same_unit_and_consistent_arithmetic():
+    results = extract_declarations(
+        [
+            block("b1", 0, "NET WEIGHT 40g+10g EXTRA = 55g", 0.95),
+        ]
+    )
+
+    quantity = next(
+        result
+        for result in results
+        if result.declaration_type is DeclarationType.NET_QUANTITY
+    )
+    assert quantity.normalized_value == {
+        "value": "40",
+        "unit": "g",
+    }
+    assert quantity.extractor_method == "net_quantity_label_v1"

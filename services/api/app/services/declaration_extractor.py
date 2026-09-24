@@ -8,7 +8,7 @@ from statistics import mean
 
 from app.models.declaration import DeclarationType
 
-DECLARATION_EXTRACTOR_VERSION = "declaration-extractor-v2"
+DECLARATION_EXTRACTOR_VERSION = "declaration-extractor-v3"
 SUPPORTED_DECLARATION_TYPES = (
     DeclarationType.MRP,
     DeclarationType.NET_QUANTITY,
@@ -35,6 +35,25 @@ _NET_QUANTITY_LABEL = re.compile(
 
 _NET_QUANTITY = re.compile(
     r"\bnet\s*(?:qty|quantity|wt|weight|content)\.?\s*[:\-]?\s*"
+    r"([0-9]+(?:\.[0-9]+)?)\s*"
+    r"(kg|kgs|kilogram|kilograms|g|gm|gms|gram|grams|"
+    r"ml|millilitre|millilitres|milliliter|milliliters|"
+    r"l|ltr|ltrs|litre|litres|liter|liters)\b",
+    re.IGNORECASE,
+)
+
+_NET_QUANTITY_ADDITIVE_TOTAL = re.compile(
+    r"\bnet\s*(?:qty|quantity|wt|weight|content)\.?\s*[:\-]?\s*"
+    r"([0-9]+(?:\.[0-9]+)?)\s*"
+    r"(kg|kgs|kilogram|kilograms|g|gm|gms|gram|grams|"
+    r"ml|millilitre|millilitres|milliliter|milliliters|"
+    r"l|ltr|ltrs|litre|litres|liter|liters)\s*"
+    r"\+\s*"
+    r"([0-9]+(?:\.[0-9]+)?)\s*"
+    r"(kg|kgs|kilogram|kilograms|g|gm|gms|gram|grams|"
+    r"ml|millilitre|millilitres|milliliter|milliliters|"
+    r"l|ltr|ltrs|litre|litres|liter|liters)\b"
+    r"[^=\r\n]{0,40}=\s*"
     r"([0-9]+(?:\.[0-9]+)?)\s*"
     r"(kg|kgs|kilogram|kilograms|g|gm|gms|gram|grams|"
     r"ml|millilitre|millilitres|milliliter|milliliters|"
@@ -122,6 +141,37 @@ def _extract_mrp(text: str) -> tuple[dict, str] | None:
 
 
 def _extract_net_quantity(text: str) -> tuple[dict, str] | None:
+    additive = _NET_QUANTITY_ADDITIVE_TOTAL.search(text)
+    if additive is not None:
+        base_unit = _UNIT_MAP.get(additive.group(2).lower())
+        extra_unit = _UNIT_MAP.get(additive.group(4).lower())
+        total_unit = _UNIT_MAP.get(additive.group(6).lower())
+
+        try:
+            base_value = Decimal(additive.group(1))
+            extra_value = Decimal(additive.group(3))
+            total_value = Decimal(additive.group(5))
+        except InvalidOperation:
+            base_value = extra_value = total_value = Decimal("NaN")
+
+        if (
+            base_unit is not None
+            and base_unit == extra_unit == total_unit
+            and base_value.is_finite()
+            and extra_value.is_finite()
+            and total_value.is_finite()
+            and base_value + extra_value == total_value
+        ):
+            normalized_total = _decimal_string(additive.group(5))
+            if normalized_total is not None:
+                return (
+                    {
+                        "value": normalized_total,
+                        "unit": total_unit,
+                    },
+                    "net_quantity_additive_total_v1",
+                )
+
     match = _NET_QUANTITY.search(text)
     if match is None:
         return None
