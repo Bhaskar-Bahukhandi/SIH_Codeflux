@@ -216,4 +216,78 @@ void main() {
     await coordinator.discardPendingCapture();
     expect(await pending.current(), isNull);
   });
+
+  test("replacement saves new evidence before removing old evidence", () async {
+    final inspectionId = await createInspection();
+    acquisition.next = AcquiredEvidence(
+      bytes: Uint8List.fromList(<int>[1, 1, 1, 1]),
+      filename: "old.jpg",
+    );
+    expect(
+      await coordinator.acquireAndAttach(
+        inspectionId: inspectionId,
+        viewType: "front",
+        source: EvidenceSource.camera,
+      ),
+      isTrue,
+    );
+
+    final oldEvidence =
+        (await drafts.listEvidenceForInspection(inspectionId)).single;
+
+    acquisition.next = AcquiredEvidence(
+      bytes: Uint8List.fromList(<int>[9, 9, 9, 9]),
+      filename: "replacement.jpg",
+    );
+    final replaced = await coordinator.replaceAndAttach(
+      inspectionId: inspectionId,
+      evidenceId: oldEvidence.id,
+      viewType: "front",
+      source: EvidenceSource.gallery,
+    );
+
+    expect(replaced, isTrue);
+    expect(acquisition.lastSource, EvidenceSource.gallery);
+    expect(await pending.current(), isNull);
+
+    final active = await drafts.listEvidenceForInspection(inspectionId);
+    expect(active.length, 1);
+    expect(active.single.id, isNot(oldEvidence.id));
+    expect(active.single.viewType, "front");
+
+    final removed = await drafts.getEvidence(oldEvidence.id);
+    expect(removed!.discardedAt, isNotNull);
+    expect(File(active.single.localPath).existsSync(), isTrue);
+  });
+
+  test("cancelled replacement leaves original evidence active", () async {
+    final inspectionId = await createInspection();
+    acquisition.next = AcquiredEvidence(
+      bytes: Uint8List.fromList(<int>[4, 4, 4, 4]),
+      filename: "old.jpg",
+    );
+    await coordinator.acquireAndAttach(
+      inspectionId: inspectionId,
+      viewType: "back",
+      source: EvidenceSource.camera,
+    );
+    final oldEvidence =
+        (await drafts.listEvidenceForInspection(inspectionId)).single;
+
+    acquisition.next = null;
+    final replaced = await coordinator.replaceAndAttach(
+      inspectionId: inspectionId,
+      evidenceId: oldEvidence.id,
+      viewType: "back",
+      source: EvidenceSource.gallery,
+    );
+
+    expect(replaced, isFalse);
+    expect(await pending.current(), isNull);
+    final active = await drafts.listEvidenceForInspection(inspectionId);
+    expect(active.length, 1);
+    expect(active.single.id, oldEvidence.id);
+    expect((await drafts.getEvidence(oldEvidence.id))!.discardedAt, isNull);
+  });
+
 }
