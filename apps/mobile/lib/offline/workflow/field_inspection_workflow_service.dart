@@ -332,6 +332,61 @@ class FieldInspectionWorkflowService {
     );
   }
 
+  Future<void> removeEvidence({
+    required OfficerSessionContext officer,
+    required String evidenceId,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    final evidence = await drafts.getEvidence(evidenceId);
+    if (evidence == null) {
+      throw StateError("Local evidence does not exist.");
+    }
+    await _ownedInspection(
+      officer: officer,
+      inspectionId: evidence.inspectionId,
+    );
+
+    final existing = await queue.listForInspection(evidence.inspectionId);
+    if (existing.any(
+      (operation) =>
+          operation.type == SyncOperationType.extractDeclarations ||
+          operation.type == SyncOperationType.evaluateRules ||
+          operation.type == SyncOperationType.submitInspection,
+    )) {
+      throw StateError(
+        "Package images can only be removed before preliminary review is queued.",
+      );
+    }
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.discardInspection,
+    )) {
+      throw StateError("Discarded inspections cannot be modified.");
+    }
+
+    final plan = await queue.cancelPendingWorkForEvidenceDiscard(
+      inspectionId: evidence.inspectionId,
+      evidenceId: evidence.id,
+    );
+
+    if (plan.remoteCaptureExists) {
+      await queue.enqueue(
+        operationFactory.discardCapture(
+          inspectionId: evidence.inspectionId,
+          captureId: evidence.id,
+          dependencyIds: <String>[plan.uploadOperationId!],
+          now: now,
+        ),
+      );
+    }
+
+    await drafts.markEvidenceDiscarded(evidence.id, now: now);
+
+    if (!plan.remoteCaptureExists) {
+      await evidenceStore.deleteLocalCopy(evidence.localPath);
+    }
+  }
+
   Future<InspectionSubmissionPipeline> queueForReview({
     required OfficerSessionContext officer,
     required String inspectionId,
