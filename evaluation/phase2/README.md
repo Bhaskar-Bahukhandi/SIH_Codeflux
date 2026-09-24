@@ -51,8 +51,8 @@ Supported expected geometry statuses:
 
 ## Dataset classes
 
-- `real_package`: a photograph captured from a physical package in a real camera/field-like setup.
-- `web_reference`: an image obtained from a public product/manufacturer page. Useful for packaging diversity and observation, but it does **not** count toward the real-package gate.
+- `real_package`: a camera photograph of a physical package in a real/field-like setup. It may be locally collected or an openly licensed public photograph when its source/capture provenance is retained. Publicly sourced physical-package photographs prove camera/package diversity, not execution through the CODEFLUX mobile camera.
+- `web_reference`: an image obtained from a public product/manufacturer page, typically a marketing/studio asset. Useful for packaging diversity and observation, but it does **not** count toward the real-package gate.
 - `synthetic`: generated or constructed regression fixture.
 - `other`: anything that does not fit the above categories.
 
@@ -103,6 +103,8 @@ Those numbers are an **example invocation**, not a hard-coded project requiremen
 - Synthetic cases are regression evidence only.
 - Web-reference cases are stronger than synthetic fixtures for packaging diversity, but they are not field-camera evidence and never satisfy the real-package count gate.
 - Unlabeled real images show observed metrics/states but cannot support an accuracy/agreement claim.
+- The checked-in public-physical registry contains source-page, author and license provenance but no human expected quality/geometry labels. Its workflow is therefore a real-package **observation** gate, not an agreement/accuracy gate.
+- Public physical-package photographs do not prove capture through the CODEFLUX mobile app; that remains part of the separate physical-device validation gate.
 - The harness reports status agreement, not calibrated model accuracy.
 - Threshold tuning must be documented; material behavior changes require a new algorithm version.
 - SHA-256 provenance identifies the exact manifest and image bytes used by a report; it does not replace human review of dataset suitability.
