@@ -51,3 +51,33 @@ def test_configured_dashboard_root_requires_index(
 
     with pytest.raises(RuntimeError, match="index.html is missing"):
         main_module.create_app()
+
+
+@pytest.mark.parametrize(
+    ("raw_url", "expected"),
+    [
+        (
+            "postgres://user:password@postgres.railway.internal:5432/codeflux",
+            "postgresql+psycopg://user:password@postgres.railway.internal:5432/codeflux",
+        ),
+        (
+            "postgresql://user:password@postgres.railway.internal:5432/codeflux",
+            "postgresql+psycopg://user:password@postgres.railway.internal:5432/codeflux",
+        ),
+        (
+            "postgresql+psycopg://user:password@postgres.railway.internal:5432/codeflux",
+            "postgresql+psycopg://user:password@postgres.railway.internal:5432/codeflux",
+        ),
+    ],
+)
+def test_standard_postgres_urls_use_installed_psycopg_driver(
+    raw_url: str,
+    expected: str,
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=raw_url,
+    )
+
+    assert settings.database_url == expected
