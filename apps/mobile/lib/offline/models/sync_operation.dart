@@ -9,6 +9,7 @@ enum SyncOperationType {
   updateInspection("update_inspection"),
   discardInspection("discard_inspection"),
   uploadCapture("upload_capture"),
+  discardCapture("discard_capture"),
   processCapture("process_capture"),
   analyzeGeometry("analyze_geometry"),
   runOcr("run_ocr"),
