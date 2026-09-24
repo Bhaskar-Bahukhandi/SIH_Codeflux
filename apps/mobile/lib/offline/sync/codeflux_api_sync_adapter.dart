@@ -36,6 +36,8 @@ class CodefluxApiSyncAdapter
         _executeDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _executeUploadCapture(operation),
+      SyncOperationType.discardCapture =>
+        _executeDiscardCapture(operation),
       SyncOperationType.processCapture =>
         _executeProcessCapture(operation),
       SyncOperationType.analyzeGeometry =>
@@ -71,6 +73,8 @@ class CodefluxApiSyncAdapter
         _reconcileDiscardInspection(operation),
       SyncOperationType.uploadCapture =>
         _reconcileCapture(operation),
+      SyncOperationType.discardCapture =>
+        _reconcileDiscardCapture(operation),
       SyncOperationType.processCapture =>
         _reconcileProcessCapture(operation),
       SyncOperationType.analyzeGeometry =>
