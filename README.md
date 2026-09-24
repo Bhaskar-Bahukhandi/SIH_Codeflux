@@ -31,7 +31,7 @@ The core workflow is:
 
 ## Current status
 
-**Phase 7 — Offline-first Officer field workflow and replay-safe synchronization**
+**Phase 8 — Supervisor dashboard over the persisted inspection workflow**
 
 Implemented foundation now includes:
 
@@ -55,7 +55,13 @@ Implemented foundation now includes:
 - replay-safe client-generated identities for offline/retry reconciliation;
 - durable Flutter local inspection/evidence persistence and dependency-aware sync queue;
 - outcome-unknown timeout reconciliation and restart recovery;
-- first functional Officer mobile workflow for login, local inspection creation, package-image capture, queue-for-review and sync.
+- first functional Officer mobile workflow for login, local inspection creation, package-image capture, queue-for-review and sync;
+- authenticated Supervisor/Admin React dashboard backed by the existing API;
+- persisted inspection register with deterministic search and status filtering;
+- real-data operational status counts derived from persisted inspection records;
+- read-oriented inspection detail covering package evidence, latest quality/geometry/OCR state, declaration summaries, preliminary rule results and Officer review state;
+- finalized inspection metadata and authenticated evidence-backed PDF report retrieval;
+- dashboard component/integration tests, production build validation, keyboard navigation and responsive presentation.
 
 The project still does **not** claim broad declaration coverage, physical font-size measurement, automated penalty/notice issuance or production-ready field synchronization.
 

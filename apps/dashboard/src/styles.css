@@ -11,6 +11,30 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
+:focus-visible {
+  outline: 3px solid #2f6241;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  transform: translateY(-160%);
+  border: 2px solid #274b35;
+  border-radius: 3px;
+  background: #fffdf7;
+  color: #1f241f;
+  padding: 9px 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .login-shell {
   min-height: 100vh;
   display: grid;
@@ -56,6 +80,26 @@ input:focus, select:focus { border-color: #355a42; box-shadow: 0 0 0 2px rgba(53
 .register-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .register-heading h2 { margin: 4px 0 0; font-size: clamp(1.8rem, 4vw, 2.8rem); }
 .record-count { margin: 0; font-variant-numeric: tabular-nums; color: #5d645d; }
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 24px 0 0;
+  border-top: 1px solid #9c9e96;
+  border-bottom: 1px solid #c8c6bd;
+}
+.status-summary div {
+  min-width: 0;
+  padding: 14px 16px 14px 0;
+  border-right: 1px solid #d3d1c8;
+}
+.status-summary div + div { padding-left: 16px; }
+.status-summary div:last-child { border-right: 0; }
+.status-summary dd {
+  margin-top: 4px;
+  font-size: 1.25rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
 .filters { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(170px, 230px); gap: 14px; margin: 26px 0 20px; }
 .state-panel { border: 1px solid #c4c2b9; background: #fbf9f2; padding: 24px; line-height: 1.5; }
 .state-panel p { margin: 7px 0 0; color: #60655e; }
@@ -130,4 +174,8 @@ summary { cursor: pointer; font-weight: 700; }
   .metadata-grid { grid-template-columns: 1fr; }
   .metadata-grid div, .metadata-grid div:nth-child(3n), .metadata-grid div:nth-child(3n+2) { border-right: 0; padding-left: 0; }
   .compact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .status-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .status-summary div:nth-child(2) { border-right: 0; }
+  .status-summary div:nth-child(3) { padding-left: 0; }
+  .status-summary div:nth-child(-n+2) { border-bottom: 1px solid #d3d1c8; }
 }
