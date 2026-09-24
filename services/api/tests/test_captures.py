@@ -236,3 +236,149 @@ def test_capture_upload_is_blocked_after_submission(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "inspection_not_editable"
+
+
+def test_officer_can_discard_draft_capture_without_erasing_audit_evidence(
+    client,
+    db_session,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    original = image_bytes()
+    upload = upload_image(
+        client,
+        inspection["id"],
+        headers,
+        original,
+        view="front",
+    )
+    assert upload.status_code == 201
+    capture = upload.json()
+
+    discarded = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture['id']}/discard",
+        headers=headers,
+    )
+    assert discarded.status_code == 200
+    assert discarded.json()["discarded_at"] is not None
+
+    listing = client.get(
+        f"/api/v1/inspections/{inspection['id']}/captures",
+        headers=headers,
+    )
+    assert listing.status_code == 200
+    assert listing.json() == []
+
+    metadata = client.get(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture['id']}",
+        headers=headers,
+    )
+    assert metadata.status_code == 200
+    assert metadata.json()["discarded_at"] is not None
+
+    content = client.get(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture['id']}/content",
+        headers=headers,
+    )
+    assert content.status_code == 200
+    assert content.content == original
+
+    events = list(
+        db_session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type == AuditEventType.CAPTURE_DISCARDED.value,
+            )
+            .order_by(AuditEvent.created_at.asc())
+        ).all()
+    )
+    assert len(events) == 1
+    assert events[0].details["capture_id"] == capture["id"]
+
+    replay = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture['id']}/discard",
+        headers=headers,
+    )
+    assert replay.status_code == 200
+
+    replay_events = list(
+        db_session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.inspection_id == inspection["id"],
+                AuditEvent.event_type == AuditEventType.CAPTURE_DISCARDED.value,
+            )
+        ).all()
+    )
+    assert len(replay_events) == 1
+
+
+def test_discarded_capture_cannot_be_processed_again(
+    client,
+    user_factory,
+    auth_headers,
+):
+    officer = user_factory(UserRole.OFFICER)
+    headers = auth_headers(officer)
+    inspection = create_inspection(client, headers)
+    upload = upload_image(
+        client,
+        inspection["id"],
+        headers,
+        image_bytes(),
+    )
+    capture_id = upload.json()["id"]
+
+    discarded = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=headers,
+    )
+    assert discarded.status_code == 200
+
+    process = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/process",
+        headers=headers,
+        json={},
+    )
+    assert process.status_code == 404
+    assert process.json()["error"]["code"] == "capture_not_found"
+
+
+def test_capture_discard_is_draft_only_and_owner_only(
+    client,
+    user_factory,
+    auth_headers,
+):
+    owner = user_factory(UserRole.OFFICER)
+    other = user_factory(UserRole.OFFICER)
+    owner_headers = auth_headers(owner)
+    inspection = create_inspection(client, owner_headers)
+    upload = upload_image(
+        client,
+        inspection["id"],
+        owner_headers,
+        image_bytes(),
+    )
+    capture_id = upload.json()["id"]
+
+    other_attempt = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=auth_headers(other),
+    )
+    assert other_attempt.status_code == 404
+
+    submitted = client.post(
+        f"/api/v1/inspections/{inspection['id']}/submit",
+        headers=owner_headers,
+    )
+    assert submitted.status_code == 200
+
+    after_submit = client.post(
+        f"/api/v1/inspections/{inspection['id']}/captures/{capture_id}/discard",
+        headers=owner_headers,
+    )
+    assert after_submit.status_code == 409
+    assert after_submit.json()["error"]["code"] == "inspection_not_editable"
