@@ -68,33 +68,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
     }
   }
 
-  Future<void> _addPackageView() async {
-    final view = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              title: Text("Which side are you capturing?"),
-              subtitle: Text(
-                "Choose the package view that matches the image.",
-              ),
-            ),
-            ..._views.map(
-              (value) => ListTile(
-                title: Text(_viewLabel(value)),
-                onTap: () => Navigator.pop(sheetContext, value),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (view == null || !mounted) return;
-
-    final source = await showModalBottomSheet<EvidenceSource>(
+  Future<EvidenceSource?> _chooseEvidenceSource() {
+    return showModalBottomSheet<EvidenceSource>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
@@ -124,6 +99,35 @@ class _InspectionScreenState extends State<InspectionScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _addPackageView() async {
+    final view = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text("Which side are you capturing?"),
+              subtitle: Text(
+                "Choose the package view that matches the image.",
+              ),
+            ),
+            ..._views.map(
+              (value) => ListTile(
+                title: Text(_viewLabel(value)),
+                onTap: () => Navigator.pop(sheetContext, value),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (view == null || !mounted) return;
+
+    final source = await _chooseEvidenceSource();
     if (source == null || !mounted) return;
 
     setState(() => _busy = true);
@@ -151,6 +155,106 @@ class _InspectionScreenState extends State<InspectionScreen> {
           SnackBar(content: Text("Could not save package image: $error")),
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _removeEvidence(
+    LocalEvidenceRecord record,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Remove package image?"),
+        content: Text(
+          'Remove the ${_viewLabel(record.viewType)} image? '
+          "If it has already reached the server, CODEFLUX keeps an audit "
+          "tombstone but excludes it from this draft and future processing.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Remove"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await widget.workspace.removeEvidence(evidenceId: record.id);
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "${_viewLabel(record.viewType)} image removed from the draft.",
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not remove package image: $error")),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _replaceEvidence(
+    LocalEvidenceRecord record,
+  ) async {
+    final source = await _chooseEvidenceSource();
+    if (source == null || !mounted) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final result = await widget.captureCoordinator.replaceAndAttach(
+        inspectionId: widget.inspectionId,
+        evidenceId: record.id,
+        viewType: record.viewType,
+        source: source,
+      );
+      if (!result.savedNewEvidence) {
+        return;
+      }
+
+      await _reload();
+      if (!mounted) return;
+      if (result.removedOldEvidence) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "${_viewLabel(record.viewType)} image replaced successfully.",
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Replacement image was saved, but the old image could not "
+              "be removed: ${result.removalError}",
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not replace package image: $error")),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -349,6 +453,35 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         subtitle: Text(
                           "${record.sizeBytes} bytes · "
                           "${_stateLabel(record.syncState)}",
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          tooltip: "Image actions",
+                          enabled: !_busy,
+                          onSelected: (action) {
+                            if (action == "replace") {
+                              _replaceEvidence(record);
+                            } else if (action == "remove") {
+                              _removeEvidence(record);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: "replace",
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.cameraswitch_outlined),
+                                title: Text("Replace image"),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: "remove",
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.delete_outline),
+                                title: Text("Remove image"),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const Divider(height: 1),
