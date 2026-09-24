@@ -66,6 +66,53 @@ class FieldCaptureCoordinator {
     return true;
   }
 
+  Future<bool> replaceAndAttach({
+    required String inspectionId,
+    required String evidenceId,
+    required String viewType,
+    required EvidenceSource source,
+    DateTime? now,
+  }) async {
+    final intent = await pendingCaptures.begin(
+      inspectionId: inspectionId,
+      viewType: viewType,
+      source: source.name,
+      now: now,
+    );
+
+    AcquiredEvidence? acquired;
+    try {
+      acquired = await acquisition.acquire(source);
+    } catch (_) {
+      await pendingCaptures.discard(intent.id);
+      rethrow;
+    }
+
+    if (acquired == null) {
+      await pendingCaptures.discard(intent.id);
+      return false;
+    }
+
+    await workspace.addEvidence(
+      inspectionId: inspectionId,
+      viewType: viewType,
+      bytes: acquired.bytes,
+      originalFilename: acquired.filename,
+      now: now,
+    );
+
+    try {
+      await workspace.removeEvidence(
+        inspectionId: inspectionId,
+        evidenceId: evidenceId,
+        now: now,
+      );
+    } finally {
+      await pendingCaptures.complete(intent.id);
+    }
+    return true;
+  }
+
   Future<PendingCaptureRecoveryResult> recoverInterruptedCapture({
     DateTime? now,
   }) async {
