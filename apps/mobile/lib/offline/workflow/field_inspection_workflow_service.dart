@@ -434,6 +434,15 @@ class FieldInspectionWorkflowService {
       ocrDependencies.add(detailUpdates.last.id);
     }
 
+    final captureDiscards = existing
+        .where(
+          (operation) => operation.type == SyncOperationType.discardCapture,
+        )
+        .toList(growable: false);
+    ocrDependencies.addAll(
+      captureDiscards.map((operation) => operation.id),
+    );
+
     final extractionExisting = _singleType(
       existing,
       SyncOperationType.extractDeclarations,
