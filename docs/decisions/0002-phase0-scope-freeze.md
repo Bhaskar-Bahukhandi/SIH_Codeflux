@@ -58,6 +58,8 @@ Foundation split:
 
 A dedicated technical spike will determine the practical mobile OCR runtime before the offline-analysis phase is declared complete.
 
+That feasibility spike is now recorded in ADR 0003: current official PaddleOCR Android support makes an Android native adapter feasible through an AAR/ONNX Runtime integration and Flutter platform boundary. The implementation and physical-device runtime evidence remain deferred; the validated server OCR path stays canonical for the current SIH prototype.
+
 This defers an implementation mechanism, not the offline requirement.
 
 ### 5. Supervisor permissions
