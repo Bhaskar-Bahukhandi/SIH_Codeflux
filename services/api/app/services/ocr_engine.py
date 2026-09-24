@@ -49,6 +49,7 @@ class PaddleOcrEngine:
         engine: str,
         language: str,
         model_version: str,
+        detection_model_name: str,
         device: str,
         min_confidence: float,
         enable_mkldnn: bool,
@@ -70,6 +71,7 @@ class PaddleOcrEngine:
                 engine=engine,
                 lang=language,
                 ocr_version=model_version,
+                text_detection_model_name=detection_model_name,
                 device=device,
                 enable_mkldnn=enable_mkldnn,
             )
@@ -92,6 +94,7 @@ class PaddleOcrEngine:
         self._inference_lock = Lock()
         self.parameters = {
             "engine": engine,
+            "detection_model_name": detection_model_name,
             "device": device,
             "text_rec_score_thresh": min_confidence,
             "input_max_dimension": input_max_dimension,
@@ -232,6 +235,7 @@ def _cached_paddle_engine(
     engine: str,
     language: str,
     model_version: str,
+    detection_model_name: str,
     device: str,
     min_confidence: float,
     enable_mkldnn: bool,
@@ -242,6 +246,7 @@ def _cached_paddle_engine(
         engine=engine,
         language=language,
         model_version=model_version,
+        detection_model_name=detection_model_name,
         device=device,
         min_confidence=min_confidence,
         enable_mkldnn=enable_mkldnn,
@@ -255,6 +260,7 @@ def build_ocr_engine(settings: Settings) -> OcrEngine:
         settings.ocr_inference_engine,
         settings.ocr_language,
         settings.ocr_model_version,
+        settings.ocr_detection_model_name,
         settings.ocr_device,
         settings.ocr_min_confidence,
         settings.ocr_enable_mkldnn,
