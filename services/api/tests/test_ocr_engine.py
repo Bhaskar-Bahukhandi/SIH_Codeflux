@@ -1,4 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+from threading import Lock
+import time
 
 import numpy as np
 import pytest
@@ -31,6 +34,7 @@ class FakeModel:
         self.last_threshold = None
         self.last_detection_limit = None
         self.last_detection_limit_type = None
+        self.last_shape = None
 
     def predict(
         self,
@@ -41,18 +45,25 @@ class FakeModel:
         text_det_limit_type,
     ):
         assert isinstance(image, np.ndarray)
-        assert image.shape == (80, 120, 3)
+        self.last_shape = image.shape
         self.last_threshold = text_rec_score_thresh
         self.last_detection_limit = text_det_limit_side_len
         self.last_detection_limit_type = text_det_limit_type
         return [FakeResult(self.payload)]
 
 
-def make_engine(payload, *, threshold=0.25):
+def make_engine(
+    payload,
+    *,
+    threshold=0.25,
+    input_max_dimension=1600,
+):
     engine = object.__new__(PaddleOcrEngine)
     engine._model = FakeModel(payload)
     engine._min_confidence = threshold
+    engine._input_max_dimension = input_max_dimension
     engine._detection_max_dimension = 960
+    engine._inference_lock = Lock()
     return engine
 
 
@@ -74,6 +85,7 @@ def test_paddleocr_adapter_reads_documented_recognition_fields():
 
     detections = engine.extract(image_bytes())
 
+    assert engine._model.last_shape == (80, 120, 3)
     assert engine._model.last_threshold == 0.25
     assert engine._model.last_detection_limit == 960
     assert engine._model.last_detection_limit_type == "max"
@@ -156,10 +168,96 @@ def test_paddleocr_adapter_preserves_inference_cause_for_diagnostics():
     engine = object.__new__(PaddleOcrEngine)
     engine._model = FailingPredictModel()
     engine._min_confidence = 0.25
+    engine._input_max_dimension = 1600
     engine._detection_max_dimension = 960
+    engine._inference_lock = Lock()
 
     with pytest.raises(
         OcrInferenceFailed,
         match="TypeError: unsupported prediction argument",
     ):
         engine.extract(image_bytes())
+
+
+def large_image_bytes() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (2400, 1200), (235, 235, 235)).save(
+        buffer,
+        format="JPEG",
+        quality=92,
+    )
+    return buffer.getvalue()
+
+
+def test_paddleocr_bounds_input_before_prediction_and_restores_polygon_scale():
+    payload = {
+        "res": {
+            "rec_texts": ["MRP Rs. 50"],
+            "rec_scores": [0.95],
+            "rec_polys": [
+                [[10, 20], [110, 20], [110, 60], [10, 60]],
+            ],
+        }
+    }
+    engine = make_engine(payload, input_max_dimension=1200)
+
+    detections = engine.extract(large_image_bytes())
+
+    assert engine._model.last_shape == (600, 1200, 3)
+    assert detections[0].polygon == [
+        [20.0, 40.0],
+        [220.0, 40.0],
+        [220.0, 120.0],
+        [20.0, 120.0],
+    ]
+
+
+class ConcurrencyTrackingModel:
+    def __init__(self):
+        self._guard = Lock()
+        self.active = 0
+        self.max_active = 0
+
+    def predict(
+        self,
+        _image,
+        *,
+        text_rec_score_thresh,
+        text_det_limit_side_len,
+        text_det_limit_type,
+    ):
+        with self._guard:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+        try:
+            time.sleep(0.05)
+            return [
+                FakeResult(
+                    {
+                        "res": {
+                            "rec_texts": [],
+                            "rec_scores": [],
+                            "rec_polys": [],
+                        }
+                    }
+                )
+            ]
+        finally:
+            with self._guard:
+                self.active -= 1
+
+
+def test_paddleocr_serializes_concurrent_native_inference():
+    engine = object.__new__(PaddleOcrEngine)
+    engine._model = ConcurrencyTrackingModel()
+    engine._min_confidence = 0.0
+    engine._input_max_dimension = 1600
+    engine._detection_max_dimension = 960
+    engine._inference_lock = Lock()
+
+    payload = image_bytes()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(engine.extract, [payload, payload]))
+
+    assert results == [[], []]
+    assert engine._model.max_active == 1
