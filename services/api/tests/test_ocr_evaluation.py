@@ -204,6 +204,7 @@ def test_ocr_evaluation_records_inference_failure_instead_of_aborting(tmp_path):
     assert report["real_package_mean_character_error_rate"] is None
     assert report["cases"][0]["status"] == "ocr_error"
     assert report["cases"][0]["error_code"] == "ocr_inference_failed"
+    assert report["cases"][0]["error_detail"] == "synthetic inference failure"
     assert "one_or_more_cases_failed" in report["warnings"]
     assert "no_scored_real_package_cases" in report["warnings"]
 
