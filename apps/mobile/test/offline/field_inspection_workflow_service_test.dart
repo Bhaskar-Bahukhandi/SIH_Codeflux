@@ -273,4 +273,137 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test("editing a draft updates local details and queues ordered remote patch", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Typo Product",
+      productIdentifier: "OLD-1",
+    );
+
+    await workflow.updateInspectionDetails(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      productName: "Correct Product",
+      productIdentifier: "NEW-1",
+    );
+
+    final updated = await drafts.getInspection(created.inspection.id);
+    expect(updated!.productName, "Correct Product");
+    expect(updated.productIdentifier, "NEW-1");
+
+    final operations = await queue.listForInspection(created.inspection.id);
+    expect(operations.length, 2);
+    final edit = operations.singleWhere(
+      (operation) => operation.type == SyncOperationType.updateInspection,
+    );
+    expect(edit.dependencyIds, <String>[created.createOperation.id]);
+    expect(edit.payload["product_name"], "Correct Product");
+    expect(edit.payload["product_identifier"], "NEW-1");
+
+    final evidence = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[9, 8, 7, 6]),
+      originalFilename: "front.jpg",
+    );
+    final submission = await workflow.queueForReview(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      ruleContext: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+    );
+
+    expect(
+      submission.extractionOperation.dependencyIds.toSet(),
+      <String>{evidence.ocrOperation.id, edit.id},
+    );
+  });
+
+  test("discard hides draft locally and cancels obsolete pending work", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Accidental Product",
+    );
+    await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[1, 2, 3, 4]),
+      originalFilename: "blurry.jpg",
+    );
+
+    expect(
+      (await queue.listForInspection(created.inspection.id)).length,
+      5,
+    );
+
+    await workflow.discardInspection(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+    );
+
+    expect(
+      await drafts.listInspectionsForOfficer("officer-1"),
+      isEmpty,
+    );
+
+    final operations = await queue.listForInspection(created.inspection.id);
+    expect(operations.length, 2);
+    expect(
+      operations.map((operation) => operation.type).toSet(),
+      <SyncOperationType>{
+        SyncOperationType.createInspection,
+        SyncOperationType.discardInspection,
+      },
+    );
+    final discard = operations.singleWhere(
+      (operation) => operation.type == SyncOperationType.discardInspection,
+    );
+    expect(discard.dependencyIds, <String>[created.createOperation.id]);
+  });
+
+  test("edit and discard are blocked after preliminary review is queued", () async {
+    final created = await workflow.createInspection(
+      officer: officer(),
+      productName: "Submitted Soon",
+    );
+    await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[4, 3, 2, 1]),
+      originalFilename: "front.jpg",
+    );
+    await workflow.queueForReview(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      ruleContext: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+    );
+
+    await expectLater(
+      workflow.updateInspectionDetails(
+        officer: officer(),
+        inspectionId: created.inspection.id,
+        productName: "Too Late",
+      ),
+      throwsA(isA<StateError>()),
+    );
+    await expectLater(
+      workflow.discardInspection(
+        officer: officer(),
+        inspectionId: created.inspection.id,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
 }
