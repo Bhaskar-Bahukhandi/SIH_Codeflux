@@ -218,11 +218,37 @@ class LocalDraftRepository {
   ) async {
     final rows = await offlineDatabase.database.query(
       "local_evidence",
-      where: "inspection_id = ?",
+      where: "inspection_id = ? AND discarded_at IS NULL",
       whereArgs: <Object?>[inspectionId],
       orderBy: "created_at ASC, id ASC",
     );
     return rows.map(_evidenceFromRow).toList(growable: false);
+  }
+
+  Future<void> markEvidenceDiscarded(
+    String id, {
+    DateTime? now,
+  }) async {
+    final current = await getEvidence(id);
+    if (current == null) {
+      throw StateError("Local evidence does not exist.");
+    }
+
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    final updated = await offlineDatabase.database.update(
+      "local_evidence",
+      <String, Object?>{
+        "discarded_at": timestamp.toIso8601String(),
+        "updated_at": timestamp.toIso8601String(),
+      },
+      where: "id = ?",
+      whereArgs: <Object?>[id],
+    );
+    if (updated != 1) {
+      throw StateError(
+        "Removing local evidence did not update exactly one row.",
+      );
+    }
   }
 
   Future<void> updateInspectionSyncState(
