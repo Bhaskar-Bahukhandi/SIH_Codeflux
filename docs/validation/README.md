@@ -102,7 +102,21 @@ These remain **EXTERNAL EVIDENCE REQUIRED**:
 - mobile OCR/on-device physical-runtime validation;
 - calibrated physical font-size measurement validation.
 
-The hosting/deployment provider also remains a recorded open decision.
+### Demo deployment packaging and provider decision
+
+**PASS** for repository-level deployment packaging and provider selection.
+
+Railway Hobby is the selected initial SIH demo target. The checked-in combined Docker image now:
+
+- builds the React dashboard and FastAPI API into one same-origin service;
+- installs PaddleOCR 3.7.0 + PaddlePaddle 3.2.2;
+- prefetches PP-OCRv5 model artifacts during image construction;
+- applies Alembic migrations on container startup;
+- serves the dashboard from `/`;
+- preserves `/health` and `/health/ready`;
+- passed the dedicated container smoke workflow.
+
+Railway account/service provisioning is still **EXTERNAL EVIDENCE REQUIRED**. The live deployment must still prove Railway Postgres connectivity, the persistent `/data` evidence volume, public HTTPS access and retained evidence after a service restart/redeploy.
 
 ## Claim boundary
 
