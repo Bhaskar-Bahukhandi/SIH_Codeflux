@@ -1004,4 +1004,78 @@ void main() {
     );
   });
 
+
+  test("capture discard executes and reconciles against active capture list", () async {
+    var active = false;
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" +
+              inspectionId +
+              "/captures/" +
+              captureId +
+              "/discard",
+        );
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            "id": captureId,
+            "inspection_id": inspectionId,
+            "discarded_at": "2026-09-24T11:00:00Z",
+          }),
+          200,
+        );
+      }
+
+      expect(request.method, "GET");
+      expect(
+        request.url.path,
+        "/api/v1/inspections/" + inspectionId + "/captures",
+      );
+      return http.Response(
+        jsonEncode(
+          active
+              ? <Object?>[
+                  <String, Object?>{
+                    "id": captureId,
+                    "inspection_id": inspectionId,
+                  },
+                ]
+              : <Object?>[],
+        ),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-discard-capture",
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardCapture,
+      resourceId: captureId,
+      payload: const <String, Object?>{
+        "capture_id": captureId,
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      captureId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    active = true;
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+  });
+
 }
