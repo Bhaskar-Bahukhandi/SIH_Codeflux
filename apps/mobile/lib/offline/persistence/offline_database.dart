@@ -9,7 +9,7 @@ import "package:sqflite_common/sqlite_api.dart"
 class OfflineDatabase {
   OfflineDatabase._(this.database);
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
   static const String databaseFileName = "codeflux_offline.sqlite3";
 
   final Database database;
@@ -58,6 +58,7 @@ class OfflineDatabase {
         last_error_kind TEXT,
         last_error_code TEXT,
         last_error_message TEXT,
+        discarded_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -165,6 +166,12 @@ class OfflineDatabase {
       await db.execute(
         "CREATE INDEX ix_pending_capture_intents_created "
         "ON pending_capture_intents(created_at DESC)",
+      );
+    }
+    if (oldVersion < 4 && newVersion >= 4) {
+      await db.execute(
+        "ALTER TABLE local_inspections "
+        "ADD COLUMN discarded_at TEXT",
       );
     }
   }
