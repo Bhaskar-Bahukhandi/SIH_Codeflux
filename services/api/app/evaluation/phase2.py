@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from app.core.config import Settings
 from app.models.geometry import GeometryStatus
@@ -23,8 +24,8 @@ from app.services.perspective import (
     geometry_thresholds_from_settings,
 )
 
-DatasetType = Literal["real_package", "synthetic", "other"]
-_ALLOWED_DATASET_TYPES = {"real_package", "synthetic", "other"}
+DatasetType = Literal["real_package", "web_reference", "synthetic", "other"]
+_ALLOWED_DATASET_TYPES = {"real_package", "web_reference", "synthetic", "other"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,8 @@ class Phase2ManifestRow:
     dataset_type: DatasetType
     expected_quality_status: str | None
     expected_geometry_status: str | None
+    source_page_url: str | None
+    source_domain: str | None
     notes: str
 
 
@@ -55,6 +58,30 @@ def _validate_expected_quality(value: str | None) -> str | None:
             f"expected one of {sorted(allowed)}."
         )
     return value
+
+
+def _validate_source_page_url(
+    value: str | None,
+    *,
+    dataset_type: str,
+    line_number: int,
+) -> tuple[str | None, str | None]:
+    source_page_url = _optional_text(value)
+    if source_page_url is None:
+        if dataset_type == "web_reference":
+            raise ValueError(
+                f"Manifest line {line_number}: source_page_url is required "
+                "for web_reference cases."
+            )
+        return None, None
+
+    parsed = urlparse(source_page_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(
+            f"Manifest line {line_number}: source_page_url must be an "
+            "absolute http(s) URL."
+        )
+    return source_page_url, parsed.hostname.lower()
 
 
 def _validate_expected_geometry(value: str | None) -> str | None:
@@ -121,6 +148,12 @@ def load_phase2_manifest(path: Path) -> list[Phase2ManifestRow]:
                     f"{sorted(_ALLOWED_DATASET_TYPES)}."
                 )
 
+            source_page_url, source_domain = _validate_source_page_url(
+                raw.get("source_page_url"),
+                dataset_type=dataset_type,
+                line_number=line_number,
+            )
+
             rows.append(
                 Phase2ManifestRow(
                     case_id=case_id,
@@ -132,6 +165,8 @@ def load_phase2_manifest(path: Path) -> list[Phase2ManifestRow]:
                     expected_geometry_status=_validate_expected_geometry(
                         raw.get("expected_geometry_status")
                     ),
+                    source_page_url=source_page_url,
+                    source_domain=source_domain,
                     notes=(raw.get("notes") or "").strip(),
                 )
             )
@@ -215,6 +250,8 @@ def evaluate_phase2_manifest(
                 "image_path": relative_image_path,
                 "image_sha256": image_sha256,
                 "dataset_type": row.dataset_type,
+                "source_page_url": row.source_page_url,
+                "source_domain": row.source_domain,
                 "notes": row.notes,
                 "expected_quality_status": row.expected_quality_status,
                 "quality_status": quality.status.value,
@@ -257,6 +294,9 @@ def evaluate_phase2_manifest(
     real_cases = [
         case for case in cases if case["dataset_type"] == "real_package"
     ]
+    web_reference_cases = [
+        case for case in cases if case["dataset_type"] == "web_reference"
+    ]
 
     warnings: list[str] = []
     if not real_cases:
@@ -282,6 +322,16 @@ def evaluate_phase2_manifest(
         expected_key="expected_geometry_status",
         actual_key="geometry_status",
     )
+    web_reference_quality_summary = _agreement_summary(
+        web_reference_cases,
+        expected_key="expected_quality_status",
+        actual_key="quality_status",
+    )
+    web_reference_geometry_summary = _agreement_summary(
+        web_reference_cases,
+        expected_key="expected_geometry_status",
+        actual_key="geometry_status",
+    )
 
     return {
         "manifest": resolved_manifest.name,
@@ -299,6 +349,14 @@ def evaluate_phase2_manifest(
             for case in real_cases
             if case["expected_geometry_status"] is not None
         ),
+        "web_reference_count": len(web_reference_cases),
+        "web_reference_source_domains": sorted(
+            {
+                case["source_domain"]
+                for case in web_reference_cases
+                if case["source_domain"] is not None
+            }
+        ),
         "preprocessing_version": PREPROCESSING_VERSION,
         "quality_algorithm_version": QUALITY_ALGORITHM_VERSION,
         "geometry_algorithm_version": GEOMETRY_ALGORITHM_VERSION,
@@ -306,6 +364,8 @@ def evaluate_phase2_manifest(
         "geometry_thresholds": geometry_thresholds.as_dict(),
         "quality_status_agreement": quality_summary,
         "geometry_status_agreement": geometry_summary,
+        "web_reference_quality_status_agreement": web_reference_quality_summary,
+        "web_reference_geometry_status_agreement": web_reference_geometry_summary,
         "warnings": warnings,
         "cases": cases,
     }
