@@ -120,3 +120,22 @@ def test_paddleocr_adapter_rejects_invalid_recognition_output(payload):
 
     with pytest.raises(OcrInferenceFailed):
         engine.extract(image_bytes())
+
+
+class FailingPredictModel:
+    def predict(self, _image, *, text_rec_score_thresh):
+        raise TypeError(
+            f"unsupported prediction argument at threshold {text_rec_score_thresh}"
+        )
+
+
+def test_paddleocr_adapter_preserves_inference_cause_for_diagnostics():
+    engine = object.__new__(PaddleOcrEngine)
+    engine._model = FailingPredictModel()
+    engine._min_confidence = 0.25
+
+    with pytest.raises(
+        OcrInferenceFailed,
+        match="TypeError: unsupported prediction argument",
+    ):
+        engine.extract(image_bytes())

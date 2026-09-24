@@ -45,7 +45,13 @@ Expected local inputs: evaluation/phase2/manifest.csv plus representative real-p
 
 Harness: python -m app.cli.validate_ocr
 
-Expected local inputs: evaluation/phase3/manifest.csv, real-package images, reviewed ground-truth transcriptions and a configured PaddleOCR runtime.
+The checked-in CPU observation path has now proven that PaddleOCR 3.7.0 + PaddlePaddle 3.2.2 + PP-OCRv5 can execute the 12 curated official web-reference package images with MKLDNN disabled. That observation produced 145 text blocks with 12/12 cases completing and 0 inference failures.
+
+This is **PASS** for the configured web-reference OCR runtime execution path only.
+
+Real-package OCR accuracy remains **EXTERNAL EVIDENCE REQUIRED** because CER/WER requires representative camera captures and reviewed ground-truth transcriptions.
+
+Expected real-evidence inputs: evaluation/phase3/manifest.csv, real-package images, reviewed ground-truth transcriptions and the configured PaddleOCR runtime.
 
 ### Declaration extraction
 

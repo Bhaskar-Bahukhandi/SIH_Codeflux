@@ -30,7 +30,8 @@ dev = [
   "ruff>=0.8,<1.0",
 ]
 ocr = [
-  "paddleocr>=3.5,<4.0",
+  "paddleocr==3.7.0",
+  "paddlepaddle==3.2.2",
 ]
 
 [tool.pytest.ini_options]

@@ -272,6 +272,7 @@ def evaluate_ocr_manifest(
                 {
                     "status": "pipeline_error",
                     "error_code": "image_preparation_failed",
+                    "error_detail": "Image preparation failed.",
                     "quality_status": None,
                     "quality_reasons": [],
                     "geometry_status": None,
@@ -299,11 +300,12 @@ def evaluate_ocr_manifest(
 
         try:
             detections = engine.extract(source_bytes)
-        except OcrInferenceFailed:
+        except OcrInferenceFailed as exc:
             case.update(
                 {
                     "status": "ocr_error",
                     "error_code": "ocr_inference_failed",
+                    "error_detail": str(exc),
                     "quality_status": quality.status.value,
                     "quality_reasons": quality.reasons,
                     "geometry_status": geometry.status.value,
@@ -338,6 +340,7 @@ def evaluate_ocr_manifest(
             {
                 "status": "ok",
                 "error_code": None,
+                "error_detail": None,
                 "quality_status": quality.status.value,
                 "quality_reasons": quality.reasons,
                 "geometry_status": geometry.status.value,

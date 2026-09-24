@@ -50,6 +50,7 @@ class PaddleOcrEngine:
         model_version: str,
         device: str,
         min_confidence: float,
+        enable_mkldnn: bool,
     ):
         try:
             from paddleocr import PaddleOCR
@@ -67,6 +68,7 @@ class PaddleOcrEngine:
                 lang=language,
                 ocr_version=model_version,
                 device=device,
+                enable_mkldnn=enable_mkldnn,
             )
         except Exception as exc:
             raise OcrBackendUnavailable(
@@ -86,6 +88,7 @@ class PaddleOcrEngine:
             "engine": engine,
             "device": device,
             "text_rec_score_thresh": min_confidence,
+            "enable_mkldnn": enable_mkldnn,
             "document_orientation": False,
             "document_unwarping": False,
             "textline_orientation": False,
@@ -103,7 +106,10 @@ class PaddleOcrEngine:
                 )
             )
         except Exception as exc:
-            raise OcrInferenceFailed("PaddleOCR inference failed.") from exc
+            raise OcrInferenceFailed(
+                "PaddleOCR inference failed: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
         detections: list[OcrDetection] = []
         for result in results:
@@ -170,6 +176,7 @@ def _cached_paddle_engine(
     model_version: str,
     device: str,
     min_confidence: float,
+    enable_mkldnn: bool,
 ) -> PaddleOcrEngine:
     return PaddleOcrEngine(
         engine=engine,
@@ -177,6 +184,7 @@ def _cached_paddle_engine(
         model_version=model_version,
         device=device,
         min_confidence=min_confidence,
+        enable_mkldnn=enable_mkldnn,
     )
 
 
@@ -187,6 +195,7 @@ def build_ocr_engine(settings: Settings) -> OcrEngine:
         settings.ocr_model_version,
         settings.ocr_device,
         settings.ocr_min_confidence,
+        settings.ocr_enable_mkldnn,
     )
 
 
