@@ -37,7 +37,7 @@ class Inspection(Base):
         nullable=True,
     )
     status: Mapped[InspectionStatus] = mapped_column(
-        SqlEnum(InspectionStatus, native_enum=False),
+        SqlEnum(InspectionStatus, native_enum=False, length=32),
         default=InspectionStatus.DRAFT,
         nullable=False,
     )
