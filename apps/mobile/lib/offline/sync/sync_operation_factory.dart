@@ -89,6 +89,26 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation discardCapture({
+    required String inspectionId,
+    required String captureId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardCapture,
+      resourceId: captureId,
+      payload: <String, Object?>{
+        "capture_id": captureId,
+      },
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation processCapture({
     required String inspectionId,
     required String captureId,
