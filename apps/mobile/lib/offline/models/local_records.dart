@@ -40,6 +40,7 @@ class LocalEvidenceRecord {
     required this.createdAt,
     required this.updatedAt,
     this.remoteId,
+    this.discardedAt,
   });
 
   final String id;
@@ -50,6 +51,7 @@ class LocalEvidenceRecord {
   final int sizeBytes;
   final SyncState syncState;
   final String? remoteId;
+  final DateTime? discardedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 }
