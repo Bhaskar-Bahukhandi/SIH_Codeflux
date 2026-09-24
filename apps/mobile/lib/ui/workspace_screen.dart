@@ -7,6 +7,7 @@ import "../auth/officer_session_store.dart";
 import "../capture/field_capture_coordinator.dart";
 import "../offline/models/sync_state.dart";
 import "inspection_screen.dart";
+import "sync_summary_formatter.dart";
 
 class WorkspaceScreen extends StatefulWidget {
   const WorkspaceScreen({
@@ -85,75 +86,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   Future<void> _createInspection() async {
-    final productController = TextEditingController();
-    final identifierController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final submitted = await showDialog<bool>(
+    final draft = await showDialog<_NewInspectionDraft>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("New inspection"),
-        content: Form(
-          key: formKey,
-          child: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: productController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: "Product name",
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "Product name is required.";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: identifierController,
-                  decoration: const InputDecoration(
-                    labelText: "Product identifier (optional)",
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text("Cancel"),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, true);
-              }
-            },
-            child: const Text("Create"),
-          ),
-        ],
-      ),
+      builder: (_) => const _CreateInspectionDialog(),
     );
 
-    final productName = productController.text;
-    final productIdentifier = identifierController.text;
-    productController.dispose();
-    identifierController.dispose();
-
-    if (submitted != true || !mounted) {
+    if (draft == null || !mounted) {
       return;
     }
 
     try {
       final created = await widget.workspace.createInspection(
-        productName: productName,
-        productIdentifier: productIdentifier,
+        productName: draft.productName,
+        productIdentifier: draft.productIdentifier,
       );
       await _reload();
       if (!mounted) return;
@@ -222,11 +167,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            "Sync processed ${summary.processed} operation(s): "
-            "${summary.synced} synced, ${summary.conflicts} conflict(s), "
-            "${summary.blocked} blocked.",
-          ),
+          content: Text(formatSyncDrainSummary(summary)),
         ),
       );
     } catch (error) {
@@ -403,6 +344,101 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       SyncState.conflict => "Needs review",
       SyncState.blocked => "Blocked",
     };
+  }
+}
+
+class _NewInspectionDraft {
+  const _NewInspectionDraft({
+    required this.productName,
+    this.productIdentifier,
+  });
+
+  final String productName;
+  final String? productIdentifier;
+}
+
+class _CreateInspectionDialog extends StatefulWidget {
+  const _CreateInspectionDialog();
+
+  @override
+  State<_CreateInspectionDialog> createState() =>
+      _CreateInspectionDialogState();
+}
+
+class _CreateInspectionDialogState extends State<_CreateInspectionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _productController = TextEditingController();
+  final _identifierController = TextEditingController();
+
+  @override
+  void dispose() {
+    _productController.dispose();
+    _identifierController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final productName = _productController.text.trim();
+    final identifier = _identifierController.text.trim();
+    Navigator.pop(
+      context,
+      _NewInspectionDraft(
+        productName: productName,
+        productIdentifier: identifier.isEmpty ? null : identifier,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("New inspection"),
+      content: Form(
+        key: _formKey,
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _productController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: "Product name",
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return "Product name is required.";
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _identifierController,
+                decoration: const InputDecoration(
+                  labelText: "Product identifier (optional)",
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text("Create"),
+        ),
+      ],
+    );
   }
 }
 
