@@ -878,4 +878,130 @@ void main() {
     final reconciliation = await adapter.reconcile(operation);
     expect(reconciliation.status, ReconciliationStatus.applied);
   });
+
+  test("inspection update execution and reconciliation preserve edited details", () async {
+    var remoteName = "Correct Product";
+    String? remoteIdentifier = "NEW-1";
+
+    final client = MockClient((request) async {
+      if (request.method == "PATCH") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" + inspectionId,
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body["product_name"], "Correct Product");
+        expect(body["product_identifier"], "NEW-1");
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            "id": inspectionId,
+            "product_name": "Correct Product",
+            "product_identifier": "NEW-1",
+            "status": "draft",
+          }),
+          200,
+        );
+      }
+
+      expect(request.method, "GET");
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": inspectionId,
+          "product_name": remoteName,
+          "product_identifier": remoteIdentifier,
+          "status": "draft",
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-update-inspection",
+      inspectionId: inspectionId,
+      type: SyncOperationType.updateInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{
+        "product_name": "Correct Product",
+        "product_identifier": "NEW-1",
+      },
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      inspectionId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    remoteName = "Old Product";
+    remoteIdentifier = null;
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+  });
+
+  test("inspection discard execution and reconciliation verify discarded state", () async {
+    var remoteStatus = "discarded";
+    final client = MockClient((request) async {
+      if (request.method == "POST") {
+        expect(
+          request.url.path,
+          "/api/v1/inspections/" + inspectionId + "/discard",
+        );
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            "id": inspectionId,
+            "status": "discarded",
+          }),
+          200,
+        );
+      }
+
+      expect(request.method, "GET");
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          "id": inspectionId,
+          "status": remoteStatus,
+        }),
+        200,
+      );
+    });
+
+    final adapter = CodefluxApiSyncAdapter(
+      client: client,
+      serverBaseUri: Uri.parse("https://example.test/"),
+      accessTokenProvider: () async => "token",
+    );
+    final operation = SyncOperation.queued(
+      id: "op-discard-inspection",
+      inspectionId: inspectionId,
+      type: SyncOperationType.discardInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{},
+    );
+
+    expect(
+      (await adapter.execute(operation)).remoteResourceId,
+      inspectionId,
+    );
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.applied,
+    );
+
+    remoteStatus = "draft";
+    expect(
+      (await adapter.reconcile(operation)).status,
+      ReconciliationStatus.notApplied,
+    );
+  });
+
 }
