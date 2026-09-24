@@ -91,11 +91,11 @@ if (Test-Path $Podfile) {
         $PodText = [regex]::Replace(
             $PodText,
             "(?m)^#?\s*platform :ios,\s*'[^']+'",
-            "platform :ios, '13.0'"
+            "platform :ios, '15.5'"
         )
     }
     else {
-        $PodText = "platform :ios, '13.0'`r`n" + $PodText
+        $PodText = "platform :ios, '15.5'`r`n" + $PodText
     }
     Set-Content -Path $Podfile -Value $PodText -Encoding UTF8
 }
