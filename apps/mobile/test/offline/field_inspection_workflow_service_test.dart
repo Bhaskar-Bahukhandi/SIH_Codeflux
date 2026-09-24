@@ -503,6 +503,32 @@ void main() {
     );
     expect(discard.resourceId, evidence.evidence.id);
     expect(discard.dependencyIds, <String>[uploadClaim.id]);
+
+    final replacement = await workflow.addEvidence(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      viewType: "front",
+      bytes: Uint8List.fromList(<int>[8, 7, 6, 5]),
+      originalFilename: "replacement.jpg",
+      now: DateTime.utc(2026, 9, 24, 10, 5),
+    );
+    final submission = await workflow.queueForReview(
+      officer: officer(),
+      inspectionId: created.inspection.id,
+      ruleContext: const <String, Object?>{
+        "intended_for_retail_sale": true,
+        "industrial_or_institutional_consumer": false,
+        "package_exceeds_25kg_or_25l": false,
+      },
+      now: DateTime.utc(2026, 9, 24, 10, 6),
+    );
+    expect(
+      submission.extractionOperation.dependencyIds.toSet(),
+      containsAll(<String>[
+        replacement.ocrOperation.id,
+        discard.id,
+      ]),
+    );
   });
 
   test("evidence removal is blocked after preliminary review is queued", () async {
