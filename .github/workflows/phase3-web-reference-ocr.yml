@@ -41,12 +41,11 @@ jobs:
       - name: Download curated official package references
         run: python scripts/prepare_phase3_web_reference.py
 
-      - name: Install API, PaddleOCR and CPU PaddlePaddle
+      - name: Install API and pinned OCR runtime
         working-directory: services/api
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,ocr]"
-          python -m pip install "paddlepaddle==3.3.1"
 
       - name: Verify PaddlePaddle runtime
         working-directory: services/api
@@ -87,6 +86,18 @@ jobs:
               raise SystemExit("Unlabeled observation unexpectedly contains ground truth.")
           if len(report["web_reference_source_domains"]) != 4:
               raise SystemExit("Expected four official source domains.")
+          if report["successful_case_count"] != 12:
+              raise SystemExit(
+                  f"OCR runtime executed successfully for only "
+                  f"{report['successful_case_count']}/12 cases."
+              )
+          if report["failed_case_count"] != 0:
+              raise SystemExit(
+                  f"OCR runtime recorded {report['failed_case_count']} failed cases."
+              )
+          total_blocks = sum(len(case["blocks"]) for case in report["cases"])
+          if total_blocks == 0:
+              raise SystemExit("OCR runtime returned zero text blocks across all cases.")
           print(
               "OCR observation:",
               report["successful_case_count"],
@@ -94,7 +105,9 @@ jobs:
               report["case_count"],
               "cases;",
               report["failed_case_count"],
-              "failed.",
+              "failed;",
+              total_blocks,
+              "text blocks.",
           )
           PY
 
