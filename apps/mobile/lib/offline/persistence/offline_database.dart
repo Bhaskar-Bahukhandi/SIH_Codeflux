@@ -9,7 +9,7 @@ import "package:sqflite_common/sqlite_api.dart"
 class OfflineDatabase {
   OfflineDatabase._(this.database);
 
-  static const int schemaVersion = 4;
+  static const int schemaVersion = 5;
   static const String databaseFileName = "codeflux_offline.sqlite3";
 
   final Database database;
@@ -74,6 +74,7 @@ class OfflineDatabase {
         size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
         sync_state TEXT NOT NULL,
         remote_id TEXT,
+        discarded_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (inspection_id)
@@ -171,6 +172,12 @@ class OfflineDatabase {
     if (oldVersion < 4 && newVersion >= 4) {
       await db.execute(
         "ALTER TABLE local_inspections "
+        "ADD COLUMN discarded_at TEXT",
+      );
+    }
+    if (oldVersion < 5 && newVersion >= 5) {
+      await db.execute(
+        "ALTER TABLE local_evidence "
         "ADD COLUMN discarded_at TEXT",
       );
     }
