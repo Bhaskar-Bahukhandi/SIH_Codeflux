@@ -30,7 +30,7 @@ Columns:
 
 ## Dataset classes
 
-- `real_package`: a camera capture of a physical retail package. Only this class contributes to the real-package OCR gates.
+- `real_package`: a camera photograph of a physical retail package. It may be locally collected or an openly licensed public camera photograph when source provenance is retained. Only this class contributes to real-package OCR case counts; CER/WER still require reviewed ground truth.
 - `web_reference`: a public manufacturer/product reference image with a recorded source page. Useful for testing OCR execution and packaging diversity, but it does not count as field-camera evidence.
 - `synthetic`: generated or constructed regression fixture.
 - `other`: evidence outside the above classes.
@@ -109,6 +109,8 @@ Those values are examples, not project claims or frozen acceptance thresholds.
 - Synthetic images are regression evidence only.
 - Web-reference images are observation/reference evidence only and never satisfy the real-package OCR gate.
 - Unlabeled real images cannot support a CER/WER claim.
+- The public-physical OCR workflow executes PP-OCRv5 on openly licensed camera photographs of physical packages. A successful run demonstrates real-package runtime robustness only; it cannot produce CER/WER until reviewed transcriptions are supplied.
+- Public physical-package photographs do not prove capture through the CODEFLUX mobile app.
 - Labeled images that fail OCR are reported as failures, not scored as if they succeeded.
 - Real-package OCR validation remains pending until the team runs this harness on representative package photographs and reviews the report.
 - Unlabeled web-reference OCR output can demonstrate engine execution/robustness, but it cannot produce CER/WER accuracy claims.
