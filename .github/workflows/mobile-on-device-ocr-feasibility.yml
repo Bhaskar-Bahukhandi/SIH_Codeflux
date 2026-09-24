@@ -64,7 +64,7 @@ jobs:
         run: |
           cp pubspec.yaml /tmp/codeflux-pubspec.yaml
           cp lib/main.dart /tmp/codeflux-main.dart
-          flutter create --platforms=android --org in.sih.codeflux .
+          flutter create --platforms=android --org org.sih.codeflux .
           cp /tmp/codeflux-pubspec.yaml pubspec.yaml
           cp /tmp/codeflux-main.dart lib/main.dart
 
