@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codeflux-api"
 version = "0.1.0"
-description = "Backend API foundation for CODEFLUX SIH26034."
+description = "CODEFLUX backend for SIH26034."
 requires-python = ">=3.11"
 dependencies = [
   "alembic>=1.14,<2.0",
@@ -24,25 +24,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "httpx>=0.27,<1.0",
-  "pytest>=8.3,<10.0",
-  "ruff>=0.8,<1.0",
-]
 ocr = [
   "paddleocr==3.7.0",
   "paddlepaddle==3.2.2",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
-
 [tool.setuptools.packages.find]
 include = ["app*"]
-exclude = ["migrations*", "tests*"]
+exclude = ["migrations*"]
