@@ -104,6 +104,13 @@ class LocalEvidenceStore {
         sha256.convert(bytes).toString() == evidence.sha256;
   }
 
+  Future<void> deleteLocalCopy(String path) async {
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   Future<void> deleteAfterRemoteConfirmation(
     StoredLocalEvidence evidence, {
     required bool remoteDurabilityConfirmed,
