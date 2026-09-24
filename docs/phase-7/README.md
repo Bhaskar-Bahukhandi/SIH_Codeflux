@@ -1,6 +1,6 @@
 # Phase 7 — Offline-first Operation and Synchronization Hardening
 
-Status: initial implementation in progress
+Status: implemented in main; live CI integration validated, physical-device validation pending
 
 Issue: #36
 
@@ -160,9 +160,9 @@ The current Phase 7 branch now contains two bounded implementation layers.
 
 No database migration is introduced in this slice, avoiding a revision collision with PR #35.
 
-The camera/UI integration, authentication/token persistence, finalization/report synchronization, real Flutter-to-FastAPI integration run, and physical-device offline/reconnect validation are still pending.
+The camera/UI integration and authentication/token persistence are implemented. A real Flutter-to-FastAPI CI integration run now validates the pre-finalization queue through submission against a live API process. Physical-device offline/reconnect validation remains pending. Finalization/report synchronization is outside this validated pre-finalization queue scenario.
 
-The committed reconnect scenario is a deterministic sync-mechanics test using mock HTTP server state. It verifies dependency ordering, database restart persistence, response-loss reconciliation, exactly-once mutation counts in the simulated remote state, and local-evidence retention. It must not be described as real backend or field validation.
+The committed mock reconnect scenario remains useful deterministic sync-mechanics evidence for response-loss reconciliation and dependency ordering. In addition, the dedicated live integration workflow now runs the real Flutter HTTP adapter against a real FastAPI/uvicorn process with an isolated migrated database, SQLite restart persistence, PP-OCRv5 processing, declaration/rule processing and submission. This is real backend integration evidence, but it must not be described as physical-device or field validation.
 
 GitHub-hosted runner allocation has been restored. Repository, API, and mobile validation now use real executed workflow steps; remaining failures are treated as actual code/toolchain failures and fixed before merge.
 
@@ -224,7 +224,7 @@ online auth -> connectivity loss -> local inspection + multiple images -> restar
 
 ## Exit decision
 
-Phase 7 may close only when the minimum offline scenario is executed successfully, replay produces no duplicate mutation, the existing online path still works, and validation evidence is recorded.
+The automated Phase 7 integration gates now demonstrate restart persistence, ordered synchronization, real FastAPI compatibility and stable-ID replay without duplicate inspection/capture resources. Physical-device offline/reconnect execution remains a separate evidence gate under Issue #43 and is not implied by CI success.
 
 
 ## Full pre-finalization queue scenario
