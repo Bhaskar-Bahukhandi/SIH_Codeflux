@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -53,6 +53,7 @@ export default function InspectionDetail({
   const [error, setError] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState("");
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -109,6 +110,12 @@ export default function InspectionDetail({
     };
   }, [accessToken, inspectionId, onUnauthorized]);
 
+  useEffect(() => {
+    if (state === "ready") {
+      headingRef.current?.focus();
+    }
+  }, [state]);
+
   async function downloadReport() {
     if (!detail?.finalization) return;
     setReportBusy(true);
@@ -156,7 +163,9 @@ export default function InspectionDetail({
           <header className="detail-header">
             <div>
               <p className="section-kicker">Inspection evidence</p>
-              <h2 id="detail-heading">{detail.inspection.product_name}</h2>
+              <h2 id="detail-heading" ref={headingRef} tabIndex={-1}>
+                {detail.inspection.product_name}
+              </h2>
               <p className="detail-identifier">
                 {detail.inspection.product_identifier ?? "No product identifier"}
               </p>
