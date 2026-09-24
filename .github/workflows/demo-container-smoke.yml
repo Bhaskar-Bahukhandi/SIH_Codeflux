@@ -1,0 +1,89 @@
+name: SIH Demo Container
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "apps/dashboard/**"
+      - "services/api/**"
+      - "scripts/prefetch_ocr_models.py"
+      - "docs/deployment/**"
+      - ".github/workflows/demo-container-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build combined demo image
+        run: docker build --tag codeflux-demo:ci .
+
+      - name: Start migrated demo container
+        run: |
+          docker run --detach \
+            --name codeflux-demo \
+            --publish 18000:8000 \
+            --env APP_ENV=demo \
+            --env JWT_SECRET=ci-demo-secret-that-is-longer-than-thirty-two-characters \
+            --env DATABASE_URL=sqlite+pysqlite:////tmp/codeflux-demo.sqlite \
+            --env MEDIA_ROOT=/tmp/codeflux-media \
+            --env PORT=8000 \
+            codeflux-demo:ci
+
+      - name: Wait for database readiness
+        run: |
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:18000/health/ready > /tmp/ready.json; then
+              cat /tmp/ready.json
+              exit 0
+            fi
+            if ! docker inspect --format '{{.State.Running}}' codeflux-demo | grep -q true; then
+              docker logs codeflux-demo
+              exit 1
+            fi
+            sleep 1
+          done
+          docker logs codeflux-demo
+          exit 1
+
+      - name: Verify API and dashboard from one origin
+        run: |
+          curl --fail --silent http://127.0.0.1:18000/health | grep -q '"status":"ok"'
+          curl --fail --silent http://127.0.0.1:18000/ | grep -q 'CODEFLUX'
+
+      - name: Verify pinned OCR runtime is present
+        run: |
+          docker exec codeflux-demo python - <<'PY'
+          import paddle
+          import paddleocr
+
+          assert paddle.__version__ == "3.2.2", paddle.__version__
+          assert paddleocr.__version__ == "3.7.0", paddleocr.__version__
+          print("paddlepaddle", paddle.__version__)
+          print("paddleocr", paddleocr.__version__)
+          PY
+
+      - name: Upload container logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sih-demo-container-logs
+          retention-days: 14
+          if-no-files-found: warn
+          path: /tmp/codeflux-container.log
+
+      - name: Capture container logs
+        if: always()
+        run: docker logs codeflux-demo > /tmp/codeflux-container.log 2>&1 || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force codeflux-demo || true
