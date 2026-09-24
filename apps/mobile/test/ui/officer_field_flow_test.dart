@@ -287,9 +287,13 @@ void main() {
     await tester.ensureVisible(cameraOption);
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(cameraOption);
+    // Capture persistence performs real temporary-file and SQLite I/O.
+    // Give that boundary a wider window when the full Flutter suite is running
+    // concurrently on a shared CI runner.
     await pumpUntilFound(
       tester,
       find.textContaining("image saved locally and queued"),
+      maxPumps: 180,
     );
 
     expect(find.text("Front"), findsOneWidget);
