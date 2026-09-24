@@ -85,6 +85,7 @@ def test_evaluation_keeps_real_and_synthetic_evidence_separate(tmp_path):
         "other": 0,
         "real_package": 1,
         "synthetic": 1,
+        "web_reference": 0,
     }
     assert report["real_package_labeled_quality_count"] == 1
     assert report["real_package_labeled_geometry_count"] == 1
