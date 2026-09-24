@@ -183,6 +183,9 @@ def discard_inspection(
     officer: User = Depends(require_officer),
 ) -> Inspection:
     inspection = get_visible_inspection_or_raise(db, inspection_id, officer)
+    if inspection.status is InspectionStatus.DISCARDED:
+        return inspection
+
     previous_status = inspection.status.value
     discard_draft(inspection)
 
