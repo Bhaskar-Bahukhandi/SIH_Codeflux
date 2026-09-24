@@ -94,13 +94,29 @@ The bounded ML Kit spike demonstrates:
 
 This does **not** prove on-device recognition output, latency, memory/battery impact or real offline model behavior. Those require a physical Android/iOS device.
 
+### Blueprint-deferred physical measurement
+
+**DEFERRED BY BLUEPRINT** for the current SIH prototype:
+
+- physical character/font-size measurement;
+- calibration-marker artwork/tolerance implementation required by that measurement.
+
+This is not being reclassified as PASS. The accepted Phase 0 scope freeze defines a calibrated-reference approach for any future physical measurement and forbids pass/fail measurement without defensible calibration. The approved Phase 7 roadmap then lists physical/font-size measurement under **Explicitly deferred**, and the Phase 6 finalization scope also excludes it.
+
+Relevant scope records:
+
+- `docs/decisions/0002-phase0-scope-freeze.md`;
+- `docs/phase-7/README.md`;
+- `docs/phase-6/finalization-report.md`.
+
+Therefore Issue #43 does not require a calibration-marker implementation to call the current approved SIH prototype scope complete. CODEFLUX must continue to state that it does **not** perform physical font-size compliance measurement.
+
 ### Still external/runtime-dependent
 
 These remain **EXTERNAL EVIDENCE REQUIRED**:
 
 - physical-device offline -> restart -> reconnect -> replay validation;
-- mobile OCR/on-device physical-runtime validation;
-- calibrated physical font-size measurement validation.
+- mobile OCR/on-device physical-runtime validation.
 
 ### Demo deployment packaging and provider decision
 
@@ -118,11 +134,24 @@ Railway Hobby is the selected initial SIH demo target. The checked-in combined D
 
 Railway account/service provisioning is still **EXTERNAL EVIDENCE REQUIRED**. The live deployment must still prove Railway Postgres connectivity, the persistent `/data` evidence volume, public HTTPS access and retained evidence after a service restart/redeploy.
 
+### Current unresolved evidence gates
+
+After the repository-controlled validation work, the remaining non-deferred evidence is:
+
+- representative physical-package camera captures for Phase 2 quality/geometry evaluation;
+- reviewed real-package OCR transcriptions for CER/WER;
+- reviewed real-package declaration labels for extraction precision/recall;
+- a physical handset run of offline -> restart -> reconnect -> replay;
+- a physical handset run of the optional ML Kit adapter to measure actual recognition/runtime behavior;
+- a live Railway deployment with Postgres, persistent media volume, HTTPS and restart/redeploy persistence verification.
+
+None of these may be reported as PASS based only on synthetic, web-reference, emulator, container or mocked evidence.
+
 ## Claim boundary
 
 A green System Validation workflow means the checked-in automated prototype paths are regression-clean on the tested toolchains.
 
-It does **not** mean real-package OCR/extraction accuracy, physical-device offline behavior, font-size measurement or production readiness has been proven. The live Flutter-to-FastAPI CI gate is process/network integration evidence, not a physical handset validation.
+It does **not** mean real-package OCR/extraction accuracy, physical-device offline behavior, physical font-size measurement or production readiness has been proven. Physical font-size measurement is outside the approved current prototype scope rather than silently assumed complete. The live Flutter-to-FastAPI CI gate is process/network integration evidence, not a physical handset validation.
 
 ## Exit rule
 
