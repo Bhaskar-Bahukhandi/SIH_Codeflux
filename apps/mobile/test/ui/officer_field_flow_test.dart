@@ -454,8 +454,12 @@ void main() {
     await tester.ensureVisible(firstImageActions);
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(firstImageActions);
-    await pumpUntilFound(tester, find.text("Replace image"));
-    await tester.tap(find.text("Replace image"));
+    final replaceMenuItem =
+        find.widgetWithText(PopupMenuItem<String>, "Replace image");
+    await pumpUntilFound(tester, replaceMenuItem);
+    await tester.ensureVisible(replaceMenuItem);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(replaceMenuItem);
     await pumpUntilFound(tester, find.text("Take photo"));
     final replacementCameraOption =
         find.widgetWithText(ListTile, "Take photo");
@@ -477,8 +481,12 @@ void main() {
     await tester.ensureVisible(replacementImageActions);
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(replacementImageActions);
-    await pumpUntilFound(tester, find.text("Remove image"));
-    await tester.tap(find.text("Remove image"));
+    final removeMenuItem =
+        find.widgetWithText(PopupMenuItem<String>, "Remove image");
+    await pumpUntilFound(tester, removeMenuItem);
+    await tester.ensureVisible(removeMenuItem);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(removeMenuItem);
     await pumpUntilFound(tester, find.text("Remove package image?"));
     await tester.tap(find.widgetWithText(FilledButton, "Remove"));
     await pumpUntilFound(
