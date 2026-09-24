@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.captures import router as captures_router
@@ -47,6 +48,21 @@ def create_app() -> FastAPI:
     app.include_router(declarations_router, prefix=settings.api_prefix)
     app.include_router(rule_evaluations_router, prefix=settings.api_prefix)
     app.include_router(finalizations_router, prefix=settings.api_prefix)
+
+    if settings.dashboard_root is not None:
+        dashboard_root = settings.dashboard_root.expanduser().resolve()
+        index_path = dashboard_root / "index.html"
+        if not index_path.is_file():
+            raise RuntimeError(
+                "DASHBOARD_ROOT is configured but index.html is missing: "
+                f"{index_path}"
+            )
+        app.mount(
+            "/",
+            StaticFiles(directory=dashboard_root, html=True),
+            name="dashboard",
+        )
+
     return app
 
 

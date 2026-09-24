@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEVELOPMENT_JWT_SECRET = "development-only-change-me-before-production"
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://codeflux:codeflux@localhost:5432/codeflux"
 
     media_root: Path = Path("./local_data/media")
+    dashboard_root: Path | None = None
     max_capture_mb: int = Field(default=12, ge=1, le=50)
     max_capture_pixels: int = Field(default=40_000_000, ge=1_000_000, le=100_000_000)
 
@@ -55,6 +56,17 @@ class Settings(BaseSettings):
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_issuer: str = "codeflux-api"
     jwt_access_minutes: int = Field(default=60, ge=5, le=1440)
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_postgres_driver(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        if value.startswith("postgres://"):
+            return "postgresql+psycopg://" + value[len("postgres://"):]
+        if value.startswith("postgresql://"):
+            return "postgresql+psycopg://" + value[len("postgresql://"):]
+        return value
 
     model_config = SettingsConfigDict(
         env_file=".env",
