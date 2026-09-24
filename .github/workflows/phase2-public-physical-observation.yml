@@ -1,0 +1,103 @@
+name: Phase 2 Public Physical Package Observation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "evaluation/phase2/public_physical_sources.csv"
+      - "scripts/prepare_phase2_public_physical.py"
+      - "scripts/prepare_phase2_web_reference.py"
+      - ".github/workflows/phase2-public-physical-observation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  observe-public-physical-packages:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    env:
+      APP_ENV: test
+      JWT_SECRET: public-physical-observation-test-secret
+      DATABASE_URL: sqlite+pysqlite:///./public-physical-observation.sqlite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+
+      - name: Download licensed physical-package photographs
+        run: python scripts/prepare_phase2_public_physical.py
+
+      - name: Install API dependencies
+        working-directory: services/api
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run Phase 2 real-package observation
+        working-directory: services/api
+        run: |
+          python -m app.cli.validate_phase2             --manifest ../../evaluation/phase2/manifest.csv             --output ../../evaluation/reports/phase2-public-physical-observation.json             --require-real-package 6
+
+      - name: Verify evidence and label boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          acquisition = json.loads(
+              Path("evaluation/phase2/public_physical_acquisition.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          report = json.loads(
+              Path(
+                  "evaluation/reports/phase2-public-physical-observation.json"
+              ).read_text(encoding="utf-8")
+          )
+
+          if acquisition["case_count"] != 6:
+              raise SystemExit("Expected exactly six curated physical-package photos.")
+          if acquisition["evidence_class"] != "public_physical_package_camera_photograph":
+              raise SystemExit("Unexpected evidence class.")
+          if any(not case["license"] for case in acquisition["cases"]):
+              raise SystemExit("Every public photograph must retain license metadata.")
+          if report["dataset_counts"]["real_package"] != 6:
+              raise SystemExit("Expected six real_package camera photographs.")
+          if report["dataset_counts"]["web_reference"] != 0:
+              raise SystemExit("Physical-package observation contaminated web_reference count.")
+          if report["real_package_labeled_quality_count"] != 0:
+              raise SystemExit("Unreviewed photos must not contain quality labels.")
+          if report["real_package_labeled_geometry_count"] != 0:
+              raise SystemExit("Unreviewed photos must not contain geometry labels.")
+
+          required_warnings = {
+              "no_labeled_real_package_quality_cases",
+              "no_labeled_real_package_geometry_cases",
+          }
+          if not required_warnings.issubset(set(report["warnings"])):
+              raise SystemExit(
+                  "Unlabeled physical-package evidence must preserve label warnings."
+              )
+
+          print(
+              "Observed",
+              report["dataset_counts"]["real_package"],
+              "licensed physical-package camera photographs; human labels remain pending.",
+          )
+          PY
+
+      - name: Upload observation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-public-physical-observation
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            evaluation/phase2/manifest.csv
+            evaluation/phase2/public_physical_acquisition.json
+            evaluation/reports/phase2-public-physical-observation.json
