@@ -1,0 +1,109 @@
+name: Build CODEFLUX Demo APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-demo-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-demo-apk:
+    name: Build Android demo APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      CODEFLUX_DEMO_API_URL: https://codeflux-demo-production.up.railway.app/
+
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate ephemeral Android runner
+        run: |
+          cp pubspec.yaml /tmp/codeflux-pubspec.yaml
+          cp lib/main.dart /tmp/codeflux-main.dart
+          flutter create --platforms=android --org org.sih.codeflux .
+          cp /tmp/codeflux-pubspec.yaml pubspec.yaml
+          cp /tmp/codeflux-main.dart lib/main.dart
+
+      - name: Keep validated Android minimum SDK
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
+          elif [ -f android/app/build.gradle ]; then
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
+          else
+            echo "Android app Gradle file not found." >&2
+            exit 1
+          fi
+
+      - name: Set demo app label
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace('android:label="codeflux_mobile"', 'android:label="CODEFLUX"')
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze mobile app
+        run: flutter analyze
+
+      - name: Run mobile regression tests
+        run: timeout --signal=TERM 15m flutter test --reporter expanded
+
+      - name: Build live-backend debug APK
+        run: |
+          flutter build apk --debug \
+            --dart-define=CODEFLUX_API_URL="$CODEFLUX_DEMO_API_URL"
+
+      - name: Package and fingerprint artifact
+        run: |
+          mkdir -p build/demo-artifact
+          cp build/app/outputs/flutter-apk/app-debug.apk \
+            build/demo-artifact/CODEFLUX-SIH-demo-debug.apk
+
+          {
+            echo "artifact=CODEFLUX-SIH-demo-debug.apk"
+            echo "commit=$GITHUB_SHA"
+            echo "api_url=$CODEFLUX_DEMO_API_URL"
+            echo "flutter=3.47.5"
+            echo "build_type=debug"
+            echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > build/demo-artifact/build-metadata.txt
+
+          sha256sum build/demo-artifact/CODEFLUX-SIH-demo-debug.apk \
+            | tee build/demo-artifact/SHA256SUMS.txt
+
+      - name: Upload demo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CODEFLUX-SIH-demo-debug
+          path: apps/mobile/build/demo-artifact/
+          if-no-files-found: error
+          retention-days: 14
