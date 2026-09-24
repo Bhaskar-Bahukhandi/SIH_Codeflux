@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
+from threading import Lock
 from typing import Protocol
 
 import numpy as np
@@ -51,6 +52,7 @@ class PaddleOcrEngine:
         device: str,
         min_confidence: float,
         enable_mkldnn: bool,
+        input_max_dimension: int,
         detection_max_dimension: int,
     ):
         try:
@@ -85,11 +87,14 @@ class PaddleOcrEngine:
         self.model_version = model_version
         self.language = language
         self._min_confidence = min_confidence
+        self._input_max_dimension = input_max_dimension
         self._detection_max_dimension = detection_max_dimension
+        self._inference_lock = Lock()
         self.parameters = {
             "engine": engine,
             "device": device,
             "text_rec_score_thresh": min_confidence,
+            "input_max_dimension": input_max_dimension,
             "text_det_limit_side_len": detection_max_dimension,
             "text_det_limit_type": "max",
             "enable_mkldnn": enable_mkldnn,
@@ -98,19 +103,62 @@ class PaddleOcrEngine:
             "textline_orientation": False,
         }
 
+    def _prepare_input(
+        self,
+        image_bytes: bytes,
+    ) -> tuple[np.ndarray, float, float]:
+        with Image.open(BytesIO(image_bytes)) as image:
+            source_width, source_height = image.size
+            if source_width < 1 or source_height < 1:
+                raise ValueError("OCR input has invalid dimensions.")
+
+            # JPEG draft decoding can reduce the decoder's working set before
+            # Pillow materializes RGB pixels. The explicit resize remains the
+            # correctness boundary for formats where draft() is a no-op.
+            image.draft(
+                "RGB",
+                (self._input_max_dimension, self._input_max_dimension),
+            )
+            prepared = image.convert("RGB")
+
+            max_dimension = max(prepared.size)
+            if max_dimension > self._input_max_dimension:
+                scale = self._input_max_dimension / max_dimension
+                prepared = prepared.resize(
+                    (
+                        max(1, int(round(prepared.width * scale))),
+                        max(1, int(round(prepared.height * scale))),
+                    ),
+                    resample=Image.Resampling.LANCZOS,
+                )
+
+            prepared_width, prepared_height = prepared.size
+            rgb = np.asarray(prepared, dtype=np.uint8)
+
+        return (
+            rgb,
+            source_width / prepared_width,
+            source_height / prepared_height,
+        )
+
     def extract(self, image_bytes: bytes) -> list[OcrDetection]:
         try:
-            with Image.open(BytesIO(image_bytes)) as image:
-                rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-
-            results = list(
-                self._model.predict(
-                    rgb,
-                    text_rec_score_thresh=self._min_confidence,
-                    text_det_limit_side_len=self._detection_max_dimension,
-                    text_det_limit_type="max",
+            # FastAPI executes sync endpoints in a thread pool. Paddle's native
+            # CPU runtime is both memory-heavy and not required to run in
+            # parallel inside this single-process demo service, so serialize
+            # decode + inference to avoid overlapping transient allocations.
+            with self._inference_lock:
+                rgb, polygon_scale_x, polygon_scale_y = self._prepare_input(
+                    image_bytes
                 )
-            )
+                results = list(
+                    self._model.predict(
+                        rgb,
+                        text_rec_score_thresh=self._min_confidence,
+                        text_det_limit_side_len=self._detection_max_dimension,
+                        text_det_limit_type="max",
+                    )
+                )
         except Exception as exc:
             raise OcrInferenceFailed(
                 "PaddleOCR inference failed: "
@@ -158,6 +206,10 @@ class PaddleOcrEngine:
                         "PaddleOCR returned an invalid text polygon."
                     )
 
+                polygon_array = polygon_array.copy()
+                polygon_array[:, 0] *= polygon_scale_x
+                polygon_array[:, 1] *= polygon_scale_y
+
                 detections.append(
                     OcrDetection(
                         text=text,
@@ -183,6 +235,7 @@ def _cached_paddle_engine(
     device: str,
     min_confidence: float,
     enable_mkldnn: bool,
+    input_max_dimension: int,
     detection_max_dimension: int,
 ) -> PaddleOcrEngine:
     return PaddleOcrEngine(
@@ -192,6 +245,7 @@ def _cached_paddle_engine(
         device=device,
         min_confidence=min_confidence,
         enable_mkldnn=enable_mkldnn,
+        input_max_dimension=input_max_dimension,
         detection_max_dimension=detection_max_dimension,
     )
 
@@ -204,6 +258,7 @@ def build_ocr_engine(settings: Settings) -> OcrEngine:
         settings.ocr_device,
         settings.ocr_min_confidence,
         settings.ocr_enable_mkldnn,
+        settings.ocr_input_max_dimension,
         settings.ocr_detection_max_dimension,
     )
 
