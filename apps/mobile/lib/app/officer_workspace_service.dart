@@ -141,6 +141,34 @@ class OfficerWorkspaceService {
     );
   }
 
+  Future<void> updateInspectionDetails({
+    required String inspectionId,
+    required String productName,
+    String? productIdentifier,
+    DateTime? now,
+  }) async {
+    final officer = await _requireOfficerIdentity();
+    await workflow.updateInspectionDetails(
+      officer: officer,
+      inspectionId: inspectionId,
+      productName: productName,
+      productIdentifier: productIdentifier,
+      now: now,
+    );
+  }
+
+  Future<void> discardInspection({
+    required String inspectionId,
+    DateTime? now,
+  }) async {
+    final officer = await _requireOfficerIdentity();
+    await workflow.discardInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+      now: now,
+    );
+  }
+
   Future<LocalEvidencePipeline> addEvidence({
     required String inspectionId,
     required String viewType,
