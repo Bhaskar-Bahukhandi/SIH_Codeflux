@@ -264,6 +264,14 @@ class FieldInspectionWorkflowService {
       officer: officer,
       inspectionId: inspectionId,
     );
+    final existingOperations = await queue.listForInspection(inspectionId);
+    if (existingOperations.any(
+      (operation) => operation.type == SyncOperationType.submitInspection,
+    )) {
+      throw StateError(
+        "Images can only be added before preliminary review is queued.",
+      );
+    }
 
     final normalizedView = viewType.trim();
     if (normalizedView.isEmpty) {
