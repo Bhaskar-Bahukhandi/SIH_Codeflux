@@ -63,6 +63,10 @@ void main() {
     sqfliteFfiInit();
   });
 
+  final liveIntegrationEnabled =
+      Platform.environment["CODEFLUX_INTEGRATION_API_BASE"]?.trim().isNotEmpty ==
+      true;
+
   test(
     "online auth then offline restart syncs through live FastAPI without duplicates",
     () async {
@@ -387,5 +391,8 @@ void main() {
       expect(await evidenceStore.verify(stored), isTrue);
     },
     timeout: const Timeout(Duration(minutes: 12)),
+    skip: liveIntegrationEnabled
+        ? false
+        : "Requires the dedicated live FastAPI integration environment.",
   );
 }
