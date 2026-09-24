@@ -93,7 +93,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
       ),
     );
     if (view == null || !mounted) return;
+    await _captureView(view);
+  }
 
+  Future<void> _captureView(
+    String view, {
+    LocalEvidenceRecord? replacing,
+  }) async {
     final source = await showModalBottomSheet<EvidenceSource>(
       context: context,
       showDragHandle: true,
@@ -128,18 +134,27 @@ class _InspectionScreenState extends State<InspectionScreen> {
 
     setState(() => _busy = true);
     try {
-      final saved = await widget.captureCoordinator.acquireAndAttach(
-        inspectionId: widget.inspectionId,
-        viewType: view,
-        source: source,
-      );
+      final saved = replacing == null
+          ? await widget.captureCoordinator.acquireAndAttach(
+              inspectionId: widget.inspectionId,
+              viewType: view,
+              source: source,
+            )
+          : await widget.captureCoordinator.replaceAndAttach(
+              inspectionId: widget.inspectionId,
+              evidenceId: replacing.id,
+              viewType: view,
+              source: source,
+            );
       if (saved) {
         await _reload();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                "${_viewLabel(view)} image saved locally and queued.",
+                replacing == null
+                    ? "${_viewLabel(view)} image saved locally and queued."
+                    : "${_viewLabel(view)} image replaced. Sync to apply the evidence change.",
               ),
             ),
           );
@@ -148,9 +163,65 @@ class _InspectionScreenState extends State<InspectionScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Could not save package image: $error")),
+          SnackBar(
+            content: Text(
+              replacing == null
+                  ? "Could not save package image: $error"
+                  : "Could not replace package image: $error",
+            ),
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _removeEvidence(LocalEvidenceRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Remove image?"),
+        content: Text(
+          "Remove the \"${_viewLabel(record.viewType)}\" image from this inspection? "
+          "It will no longer be used for OCR or preliminary checks. "
+          "If it was already uploaded, CODEFLUX keeps the server evidence in the audit trail "
+          "and records it as discarded.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Remove"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await widget.workspace.removeEvidence(
+        inspectionId: widget.inspectionId,
+        evidenceId: record.id,
+      );
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Image removed from active evidence. Sync to apply any server-side discard.",
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not remove image: $error")),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -349,6 +420,38 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         subtitle: Text(
                           "${record.sizeBytes} bytes · "
                           "${_stateLabel(record.syncState)}",
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          tooltip: "Image actions",
+                          enabled: !_busy,
+                          onSelected: (value) {
+                            if (value == "replace") {
+                              _captureView(
+                                record.viewType,
+                                replacing: record,
+                              );
+                            } else if (value == "remove") {
+                              _removeEvidence(record);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: "replace",
+                              child: ListTile(
+                                leading: Icon(Icons.autorenew),
+                                title: Text("Replace image"),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: "remove",
+                              child: ListTile(
+                                leading: Icon(Icons.delete_outline),
+                                title: Text("Remove image"),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const Divider(height: 1),
