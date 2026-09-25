@@ -1,9 +1,9 @@
 name: Build CODEFLUX iOS IPA
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - build/ios-ipa-0.1.0-build3
     paths:
       - "apps/mobile/**"
       - ".github/workflows/ios-ipa-build.yml"
