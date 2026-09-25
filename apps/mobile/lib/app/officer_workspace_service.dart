@@ -81,11 +81,24 @@ class OfficerWorkspaceService {
     try {
       final remoteInspections = await reviewClient.listInspections();
       for (final remote in remoteInspections) {
+        final local = await drafts.getInspection(remote.id);
+        if (remote.status == "draft" && local != null) {
+          final operations = await queue.listForInspection(remote.id);
+          if (operations.any(
+            (operation) =>
+                operation.type == SyncOperationType.reopenForRecheck,
+          )) {
+            await queue.resetCompletedReviewCycleForRecheck(remote.id);
+          }
+          continue;
+        }
+
         if (!remote.isReviewStage) {
           continue;
         }
+
         remoteReviewStages[remote.id] = true;
-        if (await drafts.getInspection(remote.id) == null) {
+        if (local == null) {
           await drafts.restoreSyncedInspection(
             id: remote.id,
             officerUserId: officer.userId,
@@ -148,9 +161,18 @@ class OfficerWorkspaceService {
     final operations = await queue.listForInspection(inspectionId);
 
     var remoteReviewStage = false;
+    var currentOperations = operations;
     try {
-      remoteReviewStage =
-          (await reviewClient.inspectionSummary(inspectionId)).isReviewStage;
+      final remote = await reviewClient.inspectionSummary(inspectionId);
+      remoteReviewStage = remote.isReviewStage;
+      if (remote.status == "draft" &&
+          currentOperations.any(
+            (operation) =>
+                operation.type == SyncOperationType.reopenForRecheck,
+          )) {
+        await queue.resetCompletedReviewCycleForRecheck(inspectionId);
+        currentOperations = await queue.listForInspection(inspectionId);
+      }
     } catch (_) {
       // Fall back to local queue history when offline.
     }
@@ -161,7 +183,7 @@ class OfficerWorkspaceService {
       evidenceCount: evidence.length,
       reviewStageQueued:
           remoteReviewStage ||
-          operations.any(
+          currentOperations.any(
             (operation) =>
                 operation.type == SyncOperationType.submitInspection,
           ),
