@@ -49,7 +49,14 @@ jobs:
             /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription CODEFLUX uses the camera to capture package evidence." ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string CODEFLUX uses selected package images as inspection evidence." ios/Runner/Info.plist || \
             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription CODEFLUX uses selected package images as inspection evidence." ios/Runner/Info.plist
-          python3 -c "from pathlib import Path; p=Path('ios/Podfile'); s=p.read_text(); lines=s.splitlines(); found=False; out=[]; [out.append(('platform :ios, \\'15.5\\'' if (line.strip().startswith('# platform :ios') or line.strip().startswith('platform :ios')) else line)) or (globals().__setitem__('found', True) if (line.strip().startswith('# platform :ios') or line.strip().startswith('platform :ios')) else None) for line in lines]; p.write_text(('' if any(x.strip().startswith('platform :ios') for x in out) else "platform :ios, '15.5'\\n") + '\\n'.join(out) + '\\n')"
+          if grep -q '^# platform :ios' ios/Podfile; then
+            sed -i '' "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
+          elif grep -q '^platform :ios' ios/Podfile; then
+            sed -i '' "s/^platform :ios.*/platform :ios, '15.5'/" ios/Podfile
+          else
+            printf "platform :ios, '15.5'\n" | cat - ios/Podfile > ios/Podfile.tmp
+            mv ios/Podfile.tmp ios/Podfile
+          fi
 
       - name: Resolve dependencies
         run: |
