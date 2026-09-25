@@ -1,3 +1,24 @@
+class RemoteInspectionSummary {
+  const RemoteInspectionSummary({
+    required this.id,
+    required this.productName,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    this.productIdentifier,
+  });
+
+  final String id;
+  final String productName;
+  final String? productIdentifier;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  bool get isReviewStage =>
+      status == "pending_review" || status == "finalized";
+}
+
 class OfficerReviewState {
   const OfficerReviewState({
     required this.inspectionId,
