@@ -162,6 +162,57 @@ class _OfficerReviewScreenState extends State<OfficerReviewScreen> {
     );
   }
 
+  Future<void> _recheck(OfficerRuleResult result) async {
+    var note = "";
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Request recheck?"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "This returns the inspection to Draft so package evidence "
+              "can be added or replaced before running the checks again.",
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: "Reason for recheck",
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) => note = value,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (note.trim().isEmpty) {
+                return;
+              }
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text("Request recheck"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _recordReview(
+      result,
+      decision: "recheck_required",
+      note: note.trim(),
+    );
+  }
+
   Future<void> _finalize() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -265,13 +316,14 @@ class _OfficerReviewScreenState extends State<OfficerReviewScreen> {
                         result.canAccept ? () => _accept(result) : null,
                     onCorrect:
                         result.canCorrect ? () => _correct(result) : null,
+                    onRecheck: () => _recheck(result),
                   ),
                 const SizedBox(height: 12),
                 if (!state.canFinalize)
                   const Text(
                     "Finalize becomes available after every result has a "
-                    "valid Officer resolution. Results that cannot be "
-                    "accepted or corrected require a recheck cycle.",
+                    "valid Officer resolution. Use Recheck when the "
+                    "current evidence is not sufficient to resolve a result.",
                     textAlign: TextAlign.center,
                   ),
                 const SizedBox(height: 12),
@@ -358,6 +410,7 @@ class _RuleResultCard extends StatelessWidget {
     required this.busy,
     required this.onAccept,
     required this.onCorrect,
+    required this.onRecheck,
   });
 
   final OfficerRuleResult result;
@@ -365,6 +418,7 @@ class _RuleResultCard extends StatelessWidget {
   final bool busy;
   final VoidCallback? onAccept;
   final VoidCallback? onCorrect;
+  final VoidCallback onRecheck;
 
   @override
   Widget build(BuildContext context) {
@@ -419,6 +473,11 @@ class _RuleResultCard extends StatelessWidget {
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text("Correct"),
                   ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onRecheck,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Recheck"),
+                ),
               ],
             ),
           ],
