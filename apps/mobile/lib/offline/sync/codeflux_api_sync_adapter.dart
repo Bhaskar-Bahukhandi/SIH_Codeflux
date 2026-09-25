@@ -56,11 +56,6 @@ class CodefluxApiSyncAdapter
         _executeReopenForRecheck(operation),
       SyncOperationType.finalizeInspection =>
         _executeFinalizeInspection(operation),
-      _ => throw UnsupportedError(
-          "No API sync executor is implemented for " +
-              operation.type.dbValue +
-              ".",
-        ),
     };
   }
 
@@ -95,9 +90,6 @@ class CodefluxApiSyncAdapter
         _reconcileReopenForRecheck(operation),
       SyncOperationType.finalizeInspection =>
         _reconcileFinalizeInspection(operation),
-      _ => Future<ReconciliationResult>.value(
-          const ReconciliationResult.unresolved(),
-        ),
     };
   }
 
