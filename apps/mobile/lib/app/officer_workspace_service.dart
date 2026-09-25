@@ -3,21 +3,26 @@ import "dart:typed_data";
 import "../auth/officer_session_store.dart";
 import "../offline/models/inspection_sync_summary.dart";
 import "../offline/models/local_records.dart";
+import "../offline/models/sync_operation.dart";
 import "../offline/persistence/local_draft_repository.dart";
 import "../offline/persistence/sync_queue_repository.dart";
 import "../offline/sync/offline_sync_service.dart";
 import "../offline/workflow/field_inspection_workflow_service.dart";
+import "../review/officer_review_api_client.dart";
+import "../review/officer_review_models.dart";
 
 class OfficerInspectionWorkspaceItem {
   const OfficerInspectionWorkspaceItem({
     required this.inspection,
     required this.syncSummary,
     required this.evidenceCount,
+    required this.reviewStageQueued,
   });
 
   final LocalInspectionDraft inspection;
   final InspectionSyncSummary syncSummary;
   final int evidenceCount;
+  final bool reviewStageQueued;
 }
 
 class WorkspaceSyncResult {
@@ -46,6 +51,7 @@ class OfficerWorkspaceService {
     required this.queue,
     required this.workflow,
     required this.syncService,
+    required this.reviewClient,
   });
 
   final OfficerSessionStore sessionStore;
@@ -53,6 +59,7 @@ class OfficerWorkspaceService {
   final SyncQueueRepository queue;
   final FieldInspectionWorkflowService workflow;
   final OfflineSyncService syncService;
+  final OfficerReviewApiClient reviewClient;
 
   Future<OfficerSessionContext?> currentOfficerIdentity() async {
     final session = await sessionStore.read();
@@ -81,11 +88,16 @@ class OfficerWorkspaceService {
       final summary = await queue.inspectionSyncSummary(
         inspection.id,
       );
+      final operations = await queue.listForInspection(inspection.id);
       items.add(
         OfficerInspectionWorkspaceItem(
           inspection: inspection,
           syncSummary: summary,
           evidenceCount: evidence.length,
+          reviewStageQueued: operations.any(
+            (operation) =>
+                operation.type == SyncOperationType.submitInspection,
+          ),
         ),
       );
     }
@@ -106,10 +118,15 @@ class OfficerWorkspaceService {
     final evidence = await drafts.listEvidenceForInspection(
       inspectionId,
     );
+    final operations = await queue.listForInspection(inspectionId);
     return OfficerInspectionWorkspaceItem(
       inspection: inspection,
       syncSummary: await queue.inspectionSyncSummary(inspectionId),
       evidenceCount: evidence.length,
+      reviewStageQueued: operations.any(
+        (operation) =>
+            operation.type == SyncOperationType.submitInspection,
+      ),
     );
   }
 
@@ -209,6 +226,45 @@ class OfficerWorkspaceService {
       officer: officer,
       inspectionId: inspectionId,
       ruleContext: ruleContext,
+      now: now,
+    );
+  }
+
+  Future<OfficerReviewState> loadOfficerReviewState(
+    String inspectionId,
+  ) async {
+    await _requireOfficerIdentity();
+    return reviewClient.load(inspectionId);
+  }
+
+  Future<void> queueOfficerReview({
+    required String inspectionId,
+    required String ruleEvaluationResultId,
+    required String decision,
+    Map<String, Object?>? correctedValue,
+    String? note,
+    DateTime? now,
+  }) async {
+    final officer = await _requireOfficerIdentity();
+    await workflow.queueOfficerReview(
+      officer: officer,
+      inspectionId: inspectionId,
+      ruleEvaluationResultId: ruleEvaluationResultId,
+      decision: decision,
+      correctedValue: correctedValue,
+      note: note,
+      now: now,
+    );
+  }
+
+  Future<void> queueFinalization({
+    required String inspectionId,
+    DateTime? now,
+  }) async {
+    final officer = await _requireOfficerIdentity();
+    await workflow.queueFinalization(
+      officer: officer,
+      inspectionId: inspectionId,
       now: now,
     );
   }
