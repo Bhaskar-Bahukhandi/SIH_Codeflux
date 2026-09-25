@@ -10,6 +10,8 @@ def main() -> None:
         ocr_inference_engine="paddle",
         ocr_language="en",
         ocr_model_version="PP-OCRv5",
+        ocr_detection_model_name="PP-OCRv5_mobile_det",
+        ocr_recognition_model_name="en_PP-OCRv5_mobile_rec",
         ocr_device="cpu",
         ocr_min_confidence=0.0,
         ocr_enable_mkldnn=False,
