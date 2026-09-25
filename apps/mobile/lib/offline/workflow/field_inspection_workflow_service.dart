@@ -407,7 +407,7 @@ class FieldInspectionWorkflowService {
     DateTime? now,
   }) async {
     _requireOfficer(officer);
-    await _ownedInspection(
+    final draft = await _ownedInspection(
       officer: officer,
       inspectionId: inspectionId,
     );
@@ -450,7 +450,7 @@ class FieldInspectionWorkflowService {
               operation.type == SyncOperationType.submitInspection,
         )
         .toList(growable: false);
-    if (submission.isEmpty) {
+    if (submission.isEmpty && draft.remoteId == null) {
       throw StateError(
         "The inspection must be submitted before Officer review.",
       );
@@ -485,9 +485,11 @@ class FieldInspectionWorkflowService {
     }
 
     final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
-    final dependencyId = previousReviews.isEmpty
-        ? submission.last.id
-        : previousReviews.last.id;
+    final dependencyIds = previousReviews.isNotEmpty
+        ? <String>[previousReviews.last.id]
+        : submission.isNotEmpty
+            ? <String>[submission.last.id]
+            : const <String>[];
     final review = await queue.enqueue(
       operationFactory.createOfficerReview(
         inspectionId: inspectionId,
@@ -496,7 +498,7 @@ class FieldInspectionWorkflowService {
         decision: decision,
         correctedValue: correctedValue,
         note: normalizedNote,
-        dependencyIds: <String>[dependencyId],
+        dependencyIds: dependencyIds,
         now: timestamp,
       ),
     );
@@ -524,7 +526,7 @@ class FieldInspectionWorkflowService {
     DateTime? now,
   }) async {
     _requireOfficer(officer);
-    await _ownedInspection(
+    final draft = await _ownedInspection(
       officer: officer,
       inspectionId: inspectionId,
     );
@@ -533,7 +535,7 @@ class FieldInspectionWorkflowService {
     final submission = existing.where(
       (operation) => operation.type == SyncOperationType.submitInspection,
     );
-    if (submission.isEmpty) {
+    if (submission.isEmpty && draft.remoteId == null) {
       throw StateError(
         "The inspection must be submitted before finalization.",
       );
@@ -560,7 +562,7 @@ class FieldInspectionWorkflowService {
               operation.type == SyncOperationType.createOfficerReview,
         )
         .toList(growable: false);
-    if (reviews.isEmpty) {
+    if (reviews.isEmpty && draft.remoteId == null) {
       throw StateError(
         "Officer reviews must be recorded before finalization.",
       );
