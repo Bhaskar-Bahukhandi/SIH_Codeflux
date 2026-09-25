@@ -48,6 +48,16 @@ class InspectionSubmissionPipeline {
   final SyncOperation submitOperation;
 }
 
+class OfficerReviewQueueResult {
+  const OfficerReviewQueueResult({
+    required this.reviewOperation,
+    this.reopenOperation,
+  });
+
+  final SyncOperation reviewOperation;
+  final SyncOperation? reopenOperation;
+}
+
 class FieldInspectionWorkflowService {
   FieldInspectionWorkflowService({
     required this.drafts,
@@ -385,6 +395,188 @@ class FieldInspectionWorkflowService {
     if (!plan.remoteCaptureExists) {
       await evidenceStore.deleteLocalCopy(evidence.localPath);
     }
+  }
+
+  Future<OfficerReviewQueueResult> queueOfficerReview({
+    required OfficerSessionContext officer,
+    required String inspectionId,
+    required String ruleEvaluationResultId,
+    required String decision,
+    Map<String, Object?>? correctedValue,
+    String? note,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    final draft = await _ownedInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+    );
+
+    const allowedDecisions = <String>{
+      "accepted",
+      "corrected",
+      "recheck_required",
+    };
+    if (!allowedDecisions.contains(decision)) {
+      throw ArgumentError.value(
+        decision,
+        "decision",
+        "Unsupported Officer review decision.",
+      );
+    }
+
+    final normalizedNote = note?.trim();
+    if (decision == "corrected" && correctedValue == null) {
+      throw ArgumentError(
+        "A corrected review requires a corrected value.",
+      );
+    }
+    if (decision != "corrected" && correctedValue != null) {
+      throw ArgumentError(
+        "Corrected value is allowed only for a corrected review.",
+      );
+    }
+    if ((decision == "corrected" || decision == "recheck_required") &&
+        (normalizedNote == null || normalizedNote.isEmpty)) {
+      throw ArgumentError(
+        "A note is required for corrected or recheck decisions.",
+      );
+    }
+
+    final existing = await queue.listForInspection(inspectionId);
+    final submission = existing
+        .where(
+          (operation) =>
+              operation.type == SyncOperationType.submitInspection,
+        )
+        .toList(growable: false);
+    if (submission.isEmpty && draft.remoteId == null) {
+      throw StateError(
+        "The inspection must be submitted before Officer review.",
+      );
+    }
+
+    final previousReviews = existing.where(
+      (operation) =>
+          operation.type == SyncOperationType.createOfficerReview &&
+          operation.payload["rule_evaluation_result_id"] ==
+              ruleEvaluationResultId,
+    ).toList(growable: false);
+
+    if (previousReviews.isNotEmpty) {
+      final latest = previousReviews.last;
+      final samePayload =
+          latest.payload["decision"] == decision &&
+          canonicalJsonEncode(latest.payload["corrected_value"]) ==
+              canonicalJsonEncode(correctedValue) &&
+          latest.payload["note"] == normalizedNote;
+      if (samePayload) {
+        final existingReopen = existing.where(
+          (operation) =>
+              operation.type == SyncOperationType.reopenForRecheck &&
+              operation.dependencyIds.contains(latest.id),
+        );
+        return OfficerReviewQueueResult(
+          reviewOperation: latest,
+          reopenOperation:
+              existingReopen.isEmpty ? null : existingReopen.last,
+        );
+      }
+    }
+
+    final timestamp = (now ?? DateTime.now().toUtc()).toUtc();
+    final dependencyIds = previousReviews.isNotEmpty
+        ? <String>[previousReviews.last.id]
+        : submission.isNotEmpty
+            ? <String>[submission.last.id]
+            : const <String>[];
+    final review = await queue.enqueue(
+      operationFactory.createOfficerReview(
+        inspectionId: inspectionId,
+        reviewId: _uuid.v4(),
+        ruleEvaluationResultId: ruleEvaluationResultId,
+        decision: decision,
+        correctedValue: correctedValue,
+        note: normalizedNote,
+        dependencyIds: dependencyIds,
+        now: timestamp,
+      ),
+    );
+
+    SyncOperation? reopen;
+    if (decision == "recheck_required") {
+      reopen = await queue.enqueue(
+        operationFactory.reopenForRecheck(
+          inspectionId: inspectionId,
+          dependencyIds: <String>[review.id],
+          now: timestamp,
+        ),
+      );
+    }
+
+    return OfficerReviewQueueResult(
+      reviewOperation: review,
+      reopenOperation: reopen,
+    );
+  }
+
+  Future<SyncOperation> queueFinalization({
+    required OfficerSessionContext officer,
+    required String inspectionId,
+    DateTime? now,
+  }) async {
+    _requireOfficer(officer);
+    final draft = await _ownedInspection(
+      officer: officer,
+      inspectionId: inspectionId,
+    );
+
+    final existing = await queue.listForInspection(inspectionId);
+    final submission = existing.where(
+      (operation) => operation.type == SyncOperationType.submitInspection,
+    );
+    if (submission.isEmpty && draft.remoteId == null) {
+      throw StateError(
+        "The inspection must be submitted before finalization.",
+      );
+    }
+
+    final existingFinalizations = existing.where(
+      (operation) => operation.type == SyncOperationType.finalizeInspection,
+    );
+    if (existingFinalizations.isNotEmpty) {
+      return existingFinalizations.last;
+    }
+
+    if (existing.any(
+      (operation) => operation.type == SyncOperationType.reopenForRecheck,
+    )) {
+      throw StateError(
+        "A recheck has been requested. Complete the new evidence and review cycle before finalization.",
+      );
+    }
+
+    final reviews = existing
+        .where(
+          (operation) =>
+              operation.type == SyncOperationType.createOfficerReview,
+        )
+        .toList(growable: false);
+    if (reviews.isEmpty && draft.remoteId == null) {
+      throw StateError(
+        "Officer reviews must be recorded before finalization.",
+      );
+    }
+
+    return queue.enqueue(
+      operationFactory.finalizeInspection(
+        inspectionId: inspectionId,
+        dependencyIds: reviews.map((operation) => operation.id).toList(
+              growable: false,
+            ),
+        now: now,
+      ),
+    );
   }
 
   Future<InspectionSubmissionPipeline> queueForReview({

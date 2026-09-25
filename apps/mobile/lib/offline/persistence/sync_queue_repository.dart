@@ -294,6 +294,47 @@ class SyncQueueRepository {
     return _fromRow(rows.single);
   }
 
+  Future<void> resetCompletedReviewCycleForRecheck(
+    String inspectionId,
+  ) async {
+    final operations = await listForInspection(inspectionId);
+    if (operations.any(
+      (operation) => operation.state == SyncState.syncing,
+    )) {
+      throw StateError(
+        "Wait for synchronization to finish before resetting the recheck cycle.",
+      );
+    }
+
+    const reviewCycleTypes = <SyncOperationType>{
+      SyncOperationType.extractDeclarations,
+      SyncOperationType.evaluateRules,
+      SyncOperationType.submitInspection,
+      SyncOperationType.createOfficerReview,
+      SyncOperationType.reopenForRecheck,
+      SyncOperationType.finalizeInspection,
+    };
+
+    final ids = operations
+        .where((operation) => reviewCycleTypes.contains(operation.type))
+        .map((operation) => operation.id)
+        .toList(growable: false);
+
+    if (ids.isEmpty) {
+      return;
+    }
+
+    await offlineDatabase.database.transaction((txn) async {
+      for (final id in ids) {
+        await txn.delete(
+          "sync_operations",
+          where: "id = ?",
+          whereArgs: <Object?>[id],
+        );
+      }
+    });
+  }
+
   Future<SyncOperation?> claimNextReady(DateTime now) {
     final timestamp = now.toUtc();
     return offlineDatabase.database.transaction((txn) async {

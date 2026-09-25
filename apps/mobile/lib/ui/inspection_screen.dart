@@ -7,6 +7,7 @@ import "../capture/evidence_acquisition_service.dart";
 import "../capture/field_capture_coordinator.dart";
 import "../offline/models/local_records.dart";
 import "../offline/models/sync_state.dart";
+import "officer_review_screen.dart";
 
 class InspectionScreen extends StatefulWidget {
   const InspectionScreen({
@@ -260,6 +261,20 @@ class _InspectionScreenState extends State<InspectionScreen> {
     }
   }
 
+  Future<void> _openOfficerReview() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OfficerReviewScreen(
+          inspectionId: widget.inspectionId,
+          workspace: widget.workspace,
+        ),
+      ),
+    );
+    if (mounted) {
+      await _reload();
+    }
+  }
+
   Future<void> _queueForReview() async {
     var intendedForRetailSale = true;
     var industrialOrInstitutional = false;
@@ -368,7 +383,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
       appBar: AppBar(
         title: Text(item?.inspection.productName ?? "Inspection"),
       ),
-      floatingActionButton: item == null
+      floatingActionButton: item == null || item.reviewStageQueued
           ? null
           : FloatingActionButton.extended(
               onPressed: _busy ? null : _addPackageView,
@@ -414,7 +429,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   ),
                   const Spacer(),
                   TextButton.icon(
-                    onPressed: _busy ? null : _addPackageView,
+                    onPressed: _busy || item.reviewStageQueued
+                        ? null
+                        : _addPackageView,
                     icon: const Icon(Icons.add),
                     label: const Text("Add"),
                   ),
@@ -459,14 +476,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           children: [
                             IconButton(
                               tooltip: "Replace image",
-                              onPressed: _busy
+                              onPressed: _busy || item.reviewStageQueued
                                   ? null
                                   : () => _replaceEvidence(record),
                               icon: const Icon(Icons.cameraswitch_outlined),
                             ),
                             IconButton(
                               tooltip: "Remove image",
-                              onPressed: _busy
+                              onPressed: _busy || item.reviewStageQueued
                                   ? null
                                   : () => _removeEvidence(record),
                               icon: const Icon(Icons.delete_outline),
@@ -479,17 +496,38 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   ),
                 ),
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _busy ? null : _queueForReview,
-                icon: const Icon(Icons.rule_folder_outlined),
-                label: const Text("Queue preliminary review"),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "This queues evidence processing and preliminary checks. "
-                "Officer verification remains the decision gate.",
-                textAlign: TextAlign.center,
-              ),
+              if (!item.reviewStageQueued) ...[
+                FilledButton.icon(
+                  onPressed: _busy ? null : _queueForReview,
+                  icon: const Icon(Icons.rule_folder_outlined),
+                  label: const Text("Queue preliminary review"),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "This queues evidence processing and preliminary checks. "
+                  "Officer verification remains the decision gate.",
+                  textAlign: TextAlign.center,
+                ),
+              ] else ...[
+                FilledButton.icon(
+                  onPressed:
+                      _busy ||
+                              item.syncSummary.overallState != SyncState.synced
+                          ? null
+                          : _openOfficerReview,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text("Officer review / finalize"),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.syncSummary.overallState == SyncState.synced
+                      ? "Review the preliminary results and record the "
+                          "Officer decision before finalization."
+                      : "Finish syncing the queued inspection before "
+                          "Officer review.",
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ],
         ),

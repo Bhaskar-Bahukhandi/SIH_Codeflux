@@ -263,6 +263,23 @@ class SyncOperationFactory {
     );
   }
 
+  SyncOperation finalizeInspection({
+    required String inspectionId,
+    List<String> dependencyIds = const <String>[],
+    String? operationId,
+    DateTime? now,
+  }) {
+    return SyncOperation.queued(
+      id: operationId ?? _uuid.v4(),
+      inspectionId: inspectionId,
+      type: SyncOperationType.finalizeInspection,
+      resourceId: inspectionId,
+      payload: const <String, Object?>{},
+      dependencyIds: dependencyIds,
+      now: now,
+    );
+  }
+
   SyncOperation createOfficerReview({
     required String inspectionId,
     required String reviewId,
