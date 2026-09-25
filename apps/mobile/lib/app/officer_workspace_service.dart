@@ -76,6 +76,31 @@ class OfficerWorkspaceService {
 
   Future<List<OfficerInspectionWorkspaceItem>> listInspections() async {
     final officer = await _requireOfficerIdentity();
+    final remoteReviewStages = <String, bool>{};
+
+    try {
+      final remoteInspections = await reviewClient.listInspections();
+      for (final remote in remoteInspections) {
+        if (!remote.isReviewStage) {
+          continue;
+        }
+        remoteReviewStages[remote.id] = true;
+        if (await drafts.getInspection(remote.id) == null) {
+          await drafts.restoreSyncedInspection(
+            id: remote.id,
+            officerUserId: officer.userId,
+            productName: remote.productName,
+            productIdentifier: remote.productIdentifier,
+            createdAt: remote.createdAt,
+            updatedAt: remote.updatedAt,
+          );
+        }
+      }
+    } catch (_) {
+      // The Officer workspace remains fully usable from local storage
+      // when the server cannot be reached.
+    }
+
     final inspections = await drafts.listInspectionsForOfficer(
       officer.userId,
     );
@@ -94,10 +119,12 @@ class OfficerWorkspaceService {
           inspection: inspection,
           syncSummary: summary,
           evidenceCount: evidence.length,
-          reviewStageQueued: operations.any(
-            (operation) =>
-                operation.type == SyncOperationType.submitInspection,
-          ),
+          reviewStageQueued:
+              remoteReviewStages[inspection.id] == true ||
+              operations.any(
+                (operation) =>
+                    operation.type == SyncOperationType.submitInspection,
+              ),
         ),
       );
     }
@@ -119,14 +146,25 @@ class OfficerWorkspaceService {
       inspectionId,
     );
     final operations = await queue.listForInspection(inspectionId);
+
+    var remoteReviewStage = false;
+    try {
+      remoteReviewStage =
+          (await reviewClient.inspectionSummary(inspectionId)).isReviewStage;
+    } catch (_) {
+      // Fall back to local queue history when offline.
+    }
+
     return OfficerInspectionWorkspaceItem(
       inspection: inspection,
       syncSummary: await queue.inspectionSyncSummary(inspectionId),
       evidenceCount: evidence.length,
-      reviewStageQueued: operations.any(
-        (operation) =>
-            operation.type == SyncOperationType.submitInspection,
-      ),
+      reviewStageQueued:
+          remoteReviewStage ||
+          operations.any(
+            (operation) =>
+                operation.type == SyncOperationType.submitInspection,
+          ),
     );
   }
 
