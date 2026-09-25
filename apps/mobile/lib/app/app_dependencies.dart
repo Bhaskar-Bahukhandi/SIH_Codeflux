@@ -17,6 +17,7 @@ import "../offline/sync/codeflux_api_sync_adapter.dart";
 import "../offline/sync/offline_sync_service.dart";
 import "../offline/sync/sync_coordinator.dart";
 import "../offline/workflow/field_inspection_workflow_service.dart";
+import "../review/officer_review_api_client.dart";
 import "officer_workspace_service.dart";
 
 class AppDependencies {
@@ -69,12 +70,18 @@ class AppDependencies {
       queue: queue,
       evidenceStore: evidenceStore,
     );
+    final reviewClient = OfficerReviewApiClient(
+      client: httpClient,
+      serverBaseUri: serverBaseUri,
+      sessionStore: sessionStore,
+    );
     final workspace = OfficerWorkspaceService(
       sessionStore: sessionStore,
       drafts: drafts,
       queue: queue,
       workflow: workflow,
       syncService: syncService,
+      reviewClient: reviewClient,
     );
     final authClient = CodefluxOfficerAuthClient(
       client: httpClient,
