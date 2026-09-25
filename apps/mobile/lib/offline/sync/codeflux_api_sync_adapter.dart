@@ -54,6 +54,8 @@ class CodefluxApiSyncAdapter
         _executeOfficerReview(operation),
       SyncOperationType.reopenForRecheck =>
         _executeReopenForRecheck(operation),
+      SyncOperationType.finalizeInspection =>
+        _executeFinalizeInspection(operation),
       _ => throw UnsupportedError(
           "No API sync executor is implemented for " +
               operation.type.dbValue +
@@ -91,6 +93,8 @@ class CodefluxApiSyncAdapter
         _reconcileOfficerReview(operation),
       SyncOperationType.reopenForRecheck =>
         _reconcileReopenForRecheck(operation),
+      SyncOperationType.finalizeInspection =>
+        _reconcileFinalizeInspection(operation),
       _ => Future<ReconciliationResult>.value(
           const ReconciliationResult.unresolved(),
         ),
@@ -1209,6 +1213,40 @@ class CodefluxApiSyncAdapter
     );
   }
 
+  Future<SyncExecutionSuccess> _executeFinalizeInspection(
+    SyncOperation operation,
+  ) async {
+    final request = http.Request(
+      "POST",
+      _endpoint(
+        "api/v1/inspections/" +
+            Uri.encodeComponent(operation.inspectionId) +
+            "/finalization",
+      ),
+    )..headers.addAll(await _headers());
+
+    final response = await _send(request);
+    _requireSuccess(response);
+    final decoded = _decodeMutationMap(
+      response.body,
+      resourceLabel: "inspection finalization",
+    );
+    final finalizationId = decoded["id"]?.toString();
+    if (finalizationId == null ||
+        finalizationId.isEmpty ||
+        decoded["inspection_id"]?.toString() != operation.inspectionId ||
+        decoded["report_id"] == null) {
+      throw const SyncRequestFailure(
+        statusCode: 409,
+        apiCode: "remote_identity_mismatch",
+        message:
+            "Server finalization response does not confirm the inspection.",
+      );
+    }
+
+    return SyncExecutionSuccess(remoteResourceId: finalizationId);
+  }
+
   Future<SyncExecutionSuccess> _executeReopenForRecheck(
     SyncOperation operation,
   ) async {
@@ -1244,6 +1282,35 @@ class CodefluxApiSyncAdapter
 
     return SyncExecutionSuccess(
       remoteResourceId: operation.inspectionId,
+    );
+  }
+
+  Future<ReconciliationResult> _reconcileFinalizeInspection(
+    SyncOperation operation,
+  ) async {
+    final response = await _get(
+      "api/v1/inspections/" +
+          Uri.encodeComponent(operation.inspectionId) +
+          "/finalization",
+    );
+    if (response.statusCode == 404) {
+      return const ReconciliationResult.notApplied();
+    }
+    _requireSuccess(response);
+
+    final decoded = _decodeReconciliationMap(
+      response.body,
+      resourceLabel: "inspection finalization",
+    );
+    final finalizationId = decoded["id"]?.toString();
+    if (finalizationId == null ||
+        finalizationId.isEmpty ||
+        decoded["inspection_id"]?.toString() != operation.inspectionId) {
+      return const ReconciliationResult.unresolved();
+    }
+
+    return ReconciliationResult.applied(
+      remoteResourceId: finalizationId,
     );
   }
 
