@@ -18,6 +18,30 @@ class OfficerReviewApiClient {
   final OfficerSessionStore sessionStore;
   final Duration requestTimeout;
 
+  Future<List<RemoteInspectionSummary>> listInspections() async {
+    final decoded = await _getJson("api/v1/inspections");
+    if (decoded is! List) {
+      throw const FormatException(
+        "Inspection list response is not a JSON array.",
+      );
+    }
+    return decoded.map((value) {
+      if (value is! Map) {
+        throw const FormatException("Inspection list item is not an object.");
+      }
+      return _inspectionSummary(value);
+    }).toList(growable: false);
+  }
+
+  Future<RemoteInspectionSummary> inspectionSummary(
+    String inspectionId,
+  ) async {
+    final decoded = await _getMap(
+      "api/v1/inspections/" + Uri.encodeComponent(inspectionId),
+    );
+    return _inspectionSummary(decoded);
+  }
+
   Future<OfficerReviewState> load(String inspectionId) async {
     final inspection = await _getMap(
       "api/v1/inspections/" + Uri.encodeComponent(inspectionId),
@@ -123,7 +147,7 @@ class OfficerReviewApiClient {
     );
   }
 
-  Future<Map<String, dynamic>> _getMap(String path) async {
+  Future<Object?> _getJson(String path) async {
     final token = await sessionStore.readValidAccessToken();
     if (token == null || token.trim().isEmpty) {
       throw StateError("Officer session has expired. Sign in again.");
@@ -142,7 +166,11 @@ class OfficerReviewApiClient {
       throw StateError(_errorMessage(response));
     }
 
-    final decoded = jsonDecode(response.body);
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> _getMap(String path) async {
+    final decoded = await _getJson(path);
     if (decoded is! Map) {
       throw const FormatException("Server response is not a JSON object.");
     }
@@ -150,6 +178,24 @@ class OfficerReviewApiClient {
       for (final entry in decoded.entries)
         entry.key.toString(): entry.value,
     };
+  }
+
+  RemoteInspectionSummary _inspectionSummary(Map value) {
+    final createdAt = DateTime.tryParse(_requiredString(value, "created_at"));
+    final updatedAt = DateTime.tryParse(_requiredString(value, "updated_at"));
+    if (createdAt == null || updatedAt == null) {
+      throw const FormatException(
+        "Inspection timestamps are not valid ISO-8601 values.",
+      );
+    }
+    return RemoteInspectionSummary(
+      id: _requiredString(value, "id"),
+      productName: _requiredString(value, "product_name"),
+      productIdentifier: value["product_identifier"]?.toString(),
+      status: _requiredString(value, "status"),
+      createdAt: createdAt.toUtc(),
+      updatedAt: updatedAt.toUtc(),
+    );
   }
 
   String _errorMessage(http.Response response) {
