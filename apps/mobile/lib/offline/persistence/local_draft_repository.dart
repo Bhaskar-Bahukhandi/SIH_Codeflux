@@ -60,6 +60,49 @@ class LocalDraftRepository {
     return (await getInspection(id))!;
   }
 
+  Future<LocalInspectionDraft> restoreSyncedInspection({
+    required String id,
+    required String officerUserId,
+    required String productName,
+    String? productIdentifier,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) async {
+    final existing = await getInspection(id);
+    if (existing != null) {
+      return existing;
+    }
+
+    final normalizedOfficerId = officerUserId.trim();
+    final normalizedName = productName.trim();
+    if (normalizedOfficerId.isEmpty || normalizedName.isEmpty) {
+      throw ArgumentError(
+        "Restored inspection requires Officer identity and product name.",
+      );
+    }
+
+    final normalizedIdentifier = productIdentifier?.trim();
+    final finalIdentifier =
+        normalizedIdentifier == null || normalizedIdentifier.isEmpty
+            ? null
+            : normalizedIdentifier;
+
+    await offlineDatabase.database.insert(
+      "local_inspections",
+      <String, Object?>{
+        "id": id,
+        "product_name": normalizedName,
+        "product_identifier": finalIdentifier,
+        "officer_user_id": normalizedOfficerId,
+        "sync_state": SyncState.synced.dbValue,
+        "remote_id": id,
+        "created_at": createdAt.toUtc().toIso8601String(),
+        "updated_at": updatedAt.toUtc().toIso8601String(),
+      },
+    );
+    return (await getInspection(id))!;
+  }
+
   Future<LocalInspectionDraft?> getInspection(String id) async {
     final rows = await offlineDatabase.database.query(
       "local_inspections",
