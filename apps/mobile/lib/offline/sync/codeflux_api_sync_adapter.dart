@@ -500,7 +500,10 @@ class CodefluxApiSyncAdapter
       ..headers.addAll(await _headers(json: true))
       ..body = jsonEncode(<String, Object?>{"id": runId});
 
-    final response = await _send(request);
+    final response = await _send(
+      request,
+      timeout: const Duration(seconds: 90),
+    );
     _requireSuccess(response);
     final decoded = _decodeMutationMap(
       response.body,
@@ -1312,10 +1315,14 @@ class CodefluxApiSyncAdapter
     return normalizedBase.resolve(relativePath);
   }
 
-  Future<http.Response> _send(http.BaseRequest request) async {
+  Future<http.Response> _send(
+    http.BaseRequest request, {
+    Duration? timeout,
+  }) async {
+    final effectiveTimeout = timeout ?? requestTimeout;
     try {
-      final streamed = await client.send(request).timeout(requestTimeout);
-      return await http.Response.fromStream(streamed).timeout(requestTimeout);
+      final streamed = await client.send(request).timeout(effectiveTimeout);
+      return await http.Response.fromStream(streamed).timeout(effectiveTimeout);
     } on TimeoutException {
       throw const SyncRequestFailure(
         timedOut: true,
