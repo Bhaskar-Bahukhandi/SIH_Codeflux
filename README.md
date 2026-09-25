@@ -14,7 +14,7 @@ The goal is simple: help an enforcement officer capture package evidence, extrac
 - PaddleOCR-based package text extraction.
 - Multi-image declaration fusion for **MRP** and **net quantity**.
 - Versioned preliminary Legal Metrology checks backed by the rule-pack JSON in this repository.
-- Officer review, correction and recheck flow.
+- Officer review, correction and finalization flow.
 - Evidence-backed PDF inspection reports for finalized inspections.
 - React Supervisor dashboard with login, inspection history, search, status filters, evidence details and report download.
 - FastAPI backend with PostgreSQL, authentication, role-based access and audit records.
@@ -23,7 +23,7 @@ The goal is simple: help an enforcement officer capture package evidence, extrac
 
 This is an SIH prototype, not a complete Legal Metrology automation platform.
 
-The current structured declaration/rule coverage is intentionally limited to MRP and net quantity for the supported retail-package profile. Broader fields such as manufacturer/importer details, date declarations, consumer-care information, physical font-size measurement and automated misleading-label detection are not claimed as completed.
+The current structured declaration/rule coverage is intentionally limited to MRP and net quantity for the supported retail-package profile. The mobile app supports Officer acceptance/correction and finalization for resolvable results. A full mobile recheck-and-resubmission cycle is not claimed as completed. Broader fields such as manufacturer/importer details, date declarations, consumer-care information, physical font-size measurement and automated misleading-label detection are also outside the current prototype scope.
 
 ## Technology
 
