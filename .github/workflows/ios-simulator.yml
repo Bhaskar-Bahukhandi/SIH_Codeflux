@@ -1,0 +1,123 @@
+name: Build iOS Simulator
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Optional CODEFLUX API base URL for the simulator build
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/ios-simulator.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/ios-simulator.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build simulator app
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show toolchain
+        run: |
+          flutter --version
+          xcodebuild -version
+
+      - name: Generate iOS platform files
+        run: |
+          test ! -d ios || {
+            echo "::error::apps/mobile/ios already exists. Review this workflow before regenerating platform files."
+            exit 1
+          }
+          flutter create --platforms=ios --org org.sih.codeflux .
+
+      - name: Configure iOS privacy descriptions
+        run: |
+          PLIST="ios/Runner/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string CODEFLUX uses the camera to capture package evidence." "$PLIST" 2>/dev/null ||             /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription CODEFLUX uses the camera to capture package evidence." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string CODEFLUX uses selected package images as inspection evidence." "$PLIST" 2>/dev/null ||             /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription CODEFLUX uses selected package images as inspection evidence." "$PLIST"
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze mobile source
+        run: flutter analyze
+
+      - name: Build iOS Simulator app
+        env:
+          INPUT_API_URL: ${{ inputs.api_url }}
+          REPOSITORY_API_URL: ${{ vars.CODEFLUX_API_URL }}
+        run: |
+          set -euo pipefail
+          API_URL="${INPUT_API_URL:-${REPOSITORY_API_URL:-}}"
+
+          if [ -n "$API_URL" ]; then
+            echo "Building simulator app with configured API URL."
+            flutter build ios --simulator --debug               --dart-define="CODEFLUX_API_URL=$API_URL"
+          else
+            echo "::warning::No CODEFLUX_API_URL was supplied. The app will build, but server-backed flows will show the repository's unconfigured-API state."
+            flutter build ios --simulator --debug
+          fi
+
+      - name: Validate simulator bundle
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphonesimulator/Runner.app"
+          test -d "$APP"
+          test -f "$APP/Info.plist"
+          test -f "$APP/Runner"
+
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist")
+
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Version: $VERSION ($BUILD)"
+          file "$APP/Runner"
+
+          test "$BUNDLE_ID" = "org.sih.codeflux.codefluxMobile"
+
+      - name: Package simulator app
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphonesimulator/Runner.app"
+          OUTPUT="build/CODEFLUX-SIH-demo-0.1.0-build4-ios-simulator.zip"
+          rm -f "$OUTPUT"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT"
+          test -s "$OUTPUT"
+          shasum -a 256 "$OUTPUT"
+
+      - name: Upload simulator artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CODEFLUX-SIH-demo-0.1.0-build4-ios-simulator
+          path: apps/mobile/build/CODEFLUX-SIH-demo-0.1.0-build4-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 14
